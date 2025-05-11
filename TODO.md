@@ -401,7 +401,7 @@ This roadmap organizes features into sprints, aiming for a runnable and testable
 
 **Goal:** Establish the foundational tools, repositories, and initial project structure to support efficient development and collaboration. (NFR5, NFR6)
 
--   [ ] **Setup & Configuration:** Initialize Git repository on a chosen platform (e.g., GitHub, GitLab). (See AI Prompt: [`PROMPTS.md#task-initialize-git-repository-on-a-chosen-platform-eg-github-gitlab`](./PROMPTS.md#task-initialize-git-repository-on-a-chosen-platform-eg-github-gitlab))
+-   [x] **Setup & Configuration:** Initialize Git repository on a chosen platform (e.g., GitHub, GitLab). (See AI Prompt: [`PROMPTS.md#task-initialize-git-repository-on-a-chosen-platform-eg-github-gitlab`](./PROMPTS.md#task-initialize-git-repository-on-a-chosen-platform-eg-github-gitlab))
 -   [ ] **Setup & Configuration:** Set up project structure (folders for `src`, `docs`, `tests`, `ui`, etc.). (See AI Prompt: [`PROMPTS.md#task-set-up-project-structure-folders-for-src-docs-tests-ui-etc`](./PROMPTS.md#task-set-up-project-structure-folders-for-src-docs-tests-ui-etc))
 -   [ ] **Setup & Configuration:** Configure CI/CD pipeline basics (e.g., linting, basic build checks on push). (See AI Prompt: [`PROMPTS.md#task-configure-cicd-pipeline-basics-eg-linting-basic-build-checks-on-push`](./PROMPTS.md#task-configure-cicd-pipeline-basics-eg-linting-basic-build-checks-on-push))
 -   [ ] **Documentation:** Initial project `README.md` with setup and build instructions. (See AI Prompt: [`PROMPTS.md#task-initial-project-readmemd-with-setup-and-build-instructions`](./PROMPTS.md#task-initial-project-readmemd-with-setup-and-build-instructions))
