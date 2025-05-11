@@ -406,8 +406,6 @@ This roadmap organizes features into sprints, aiming for a runnable and testable
 -   [ ] **Setup & Configuration:** Configure CI/CD pipeline basics (e.g., linting, basic build checks on push). (See AI Prompt: [`PROMPTS.md#task-configure-cicd-pipeline-basics-eg-linting-basic-build-checks-on-push`](./PROMPTS.md#task-configure-cicd-pipeline-basics-eg-linting-basic-build-checks-on-push))
 -   [ ] **Documentation:** Initial project `README.md` with setup and build instructions. (See AI Prompt: [`PROMPTS.md#task-initial-project-readmemd-with-setup-and-build-instructions`](./PROMPTS.md#task-initial-project-readmemd-with-setup-and-build-instructions))
 -   [ ] **Documentation:** Establish conventions for ongoing creation of supporting design documents (Use Cases, Sequence Diagrams, etc.) alongside feature development. (See AI Prompt: [`PROMPTS.md#task-establish-conventions-for-ongoing-creation-of-supporting-design-documents`](./PROMPTS.md#task-establish-conventions-for-ongoing-creation-of-supporting-design-documents))
--   [ ] **Tooling:** Choose and configure issue tracking and project management tools (e.g., Jira, Trello, GitHub Issues). (See AI Prompt: [`PROMPTS.md#task-choose-and-configure-issue-tracking-and-project-management-tools-eg-jira-trello-github-issues`](./PROMPTS.md#task-choose-and-configure-issue-tracking-and-project-management-tools-eg-jira-trello-github-issues))
--   [ ] **QA Objective:** Repository is accessible. Basic CI check passes on initial commit. Project can be cloned and a placeholder 'hello world' (or equivalent for Tauri) can be built and run locally.
 
 ---
 ---
