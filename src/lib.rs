@@ -14,13 +14,10 @@
 // Biblioteca principal do simulador de fornalha de plasma
 
 mod simulation;
-mod plugins;
-mod formula;
-mod errors;
-mod logging;
-mod ffi;
 
-use std::ffi::{c_void, CStr, CString};
+mod formula;
+
+use std::ffi::{c_void, CString};
 use std::os::raw::{c_char, c_int};
 
 // Inicializa o logger
