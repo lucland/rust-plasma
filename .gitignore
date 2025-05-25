@@ -3,3 +3,5 @@
 /target/
 /src-tauri/target/
 /src-tauri/gen/schemas
+PROMPTS.md
+PROMPTS_2.md
