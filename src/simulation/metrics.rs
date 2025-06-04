@@ -24,17 +24,18 @@
 //   - export_vtk(): Exporta dados para visualização em formato VTK
 //   - generate_report(): Gera relatórios detalhados dos resultados da simulação
 //   - validate_against_reference(): Compara resultados com dados de referência
+//   - reshape_to_3d(): Converte uma visualização 2D de dados (ArrayView2<f64>) para um array 3D (Array3<f64>) usando as dimensões da malha.
 
 // Implementação do módulo de métricas e exportação para o simulador de fornalha de plasma
 
-use ndarray::{Array1, Array2, Array3, ArrayView3};
+use ndarray::{prelude::*, s, Array1, Array2, Array3, ArrayView3};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Write};
 use std::path::Path;
 
-use crate::simulation::state::SimulationState;
+use crate::simulation::state::{SimulationState, SimulationStatus};
 use crate::simulation::mesh::CylindricalMesh;
 
 /// Estrutura que representa as métricas calculadas a partir dos resultados da simulação
@@ -142,50 +143,67 @@ impl MetricsAnalyzer {
     }
     
     /// Calcula as métricas a partir do estado da simulação
-    pub fn calculate_metrics(&mut self) -> Result<&SimulationMetrics, String> {
-        let mesh = &self.simulation_state.mesh;
-        let temperature_history = &self.simulation_state.temperature_history;
+    pub fn calculate_metrics(&mut self) -> Result<SimulationMetrics, String> {
+        // Obter a simulação atual
+        let simulation_state = &self.simulation_state;
         
-        if temperature_history.is_empty() {
-            return Err("Histórico de temperatura vazio".to_string());
+        // Verificar se há resultados disponíveis
+        if simulation_state.status != SimulationStatus::Completed {
+            return Err("Simulation not completed".to_string());
         }
         
-        // Obter a temperatura final
-        let final_temperature = &temperature_history[temperature_history.len() - 1];
+        // Extrair resultados
+        let results = match &simulation_state.results {
+            Some(r) => r,
+            None => return Err("No simulation results available".to_string()),
+        };
         
-        // Calcular métricas básicas
-        let mut min_temp = f64::INFINITY;
-        let mut max_temp = f64::NEG_INFINITY;
-        let mut sum_temp = 0.0;
-        let mut sum_squared_temp = 0.0;
-        let cell_count = final_temperature.len();
+        // Extrair a malha e temperatura final
+        let mesh = &results.mesh;
+        let temperature = &results.temperature;
         
-        for &temp in final_temperature.iter() {
-            min_temp = min_temp.min(temp);
-            max_temp = max_temp.max(temp);
-            sum_temp += temp;
-            sum_squared_temp += temp * temp;
+        // Obter temperatura final (último passo de tempo)
+        let final_temperature = temperature.slice(s![.., .., results.executed_steps - 1]);
+        
+        // Calcular métricas estatísticas básicas
+        let n_elements = final_temperature.len();
+        if n_elements == 0 {
+            return Err("Empty temperature data".to_string());
         }
         
-        let avg_temp = sum_temp / cell_count as f64;
-        let variance = (sum_squared_temp / cell_count as f64) - (avg_temp * avg_temp);
+        // Temperatura média
+        let avg_temp: f64 = final_temperature.sum() / n_elements as f64;
+        
+        // Temperaturas min e max
+        let mut min_temp = f64::MAX;
+        let mut max_temp = f64::MIN;
+        
+        for &t in final_temperature.iter() {
+            min_temp = min_temp.min(t);
+            max_temp = max_temp.max(t);
+        }
+        
+        // Desvio padrão
+        let variance: f64 = final_temperature.iter()
+            .map(|&t| (t - avg_temp).powi(2))
+            .sum::<f64>() / n_elements as f64;
+        
         let std_temp = variance.sqrt();
         
-        // Calcular gradiente e fluxo de calor
-        let max_gradient = self.calculate_max_gradient(final_temperature, mesh);
-        let max_heat_flux = self.calculate_max_heat_flux(final_temperature, mesh);
+        // Calcular gradiente máximo
+        let max_gradient = self.calculate_max_gradient(&final_temperature, mesh);
         
         // Calcular energia total
-        let total_energy = self.calculate_total_energy(final_temperature, mesh);
+        let total_energy = self.calculate_total_energy(&final_temperature, mesh);
         
         // Calcular taxa de aquecimento média
-        let avg_heating_rate = self.calculate_avg_heating_rate(temperature_history, &self.simulation_state.time_steps);
+        let avg_heating_rate = self.calculate_avg_heating_rate(&results);
         
         // Calcular métricas por região
-        let region_metrics = self.calculate_region_metrics(final_temperature, mesh);
+        let region_metrics = self.calculate_region_metrics(&final_temperature, mesh);
         
         // Calcular métricas temporais
-        let temporal_metrics = self.calculate_temporal_metrics(temperature_history, &self.simulation_state.time_steps, max_temp);
+        let temporal_metrics = self.calculate_temporal_metrics(&results, max_temp);
         
         // Criar objeto de métricas
         let metrics = SimulationMetrics {
@@ -194,29 +212,29 @@ impl MetricsAnalyzer {
             avg_temperature: avg_temp,
             std_temperature: std_temp,
             max_gradient,
-            max_heat_flux,
+            max_heat_flux: self.calculate_max_heat_flux(&final_temperature, mesh),
             total_energy,
             avg_heating_rate,
             region_metrics,
             temporal_metrics,
         };
         
-        self.metrics = Some(metrics);
+        self.metrics = Some(metrics.clone());
         
-        Ok(self.metrics.as_ref().unwrap())
+        Ok(metrics)
     }
     
     /// Calcula o gradiente máximo de temperatura
-    fn calculate_max_gradient(&self, temperature: &[f64], mesh: &CylindricalMesh) -> f64 {
+    fn calculate_max_gradient(&self, temperature: &ArrayView2<f64>, mesh: &CylindricalMesh) -> f64 {
         let temp_3d = self.reshape_to_3d(temperature, mesh);
         let (nr, ntheta, nz) = (mesh.nr, mesh.ntheta, mesh.nz);
         
-        let mut max_gradient = 0.0;
+        let mut max_gradient:    f64 = 0.0;
         
         for i in 0..nr {
             for j in 0..ntheta {
                 for k in 0..nz {
-                    let mut local_max_gradient = 0.0;
+                    let mut local_max_gradient: f64 = 0.0;
                     
                     // Gradiente radial
                     if i < nr - 1 {
@@ -249,7 +267,7 @@ impl MetricsAnalyzer {
     }
     
     /// Calcula o fluxo de calor máximo
-    fn calculate_max_heat_flux(&self, temperature: &[f64], mesh: &CylindricalMesh) -> f64 {
+    fn calculate_max_heat_flux(&self, temperature: &ArrayView2<f64>, mesh: &CylindricalMesh) -> f64 {
         // Simplificação: assumindo condutividade térmica constante de 50 W/(m·K)
         const THERMAL_CONDUCTIVITY: f64 = 50.0;
         
@@ -258,7 +276,7 @@ impl MetricsAnalyzer {
     }
     
     /// Calcula a energia total no sistema
-    fn calculate_total_energy(&self, temperature: &[f64], mesh: &CylindricalMesh) -> f64 {
+    fn calculate_total_energy(&self, temperature: &ArrayView2<f64>, mesh: &CylindricalMesh) -> f64 {
         // Simplificação: assumindo densidade e calor específico constantes
         const DENSITY: f64 = 7800.0; // kg/m³ (aproximadamente aço)
         const SPECIFIC_HEAT: f64 = 500.0; // J/(kg·K)
@@ -294,15 +312,21 @@ impl MetricsAnalyzer {
     }
     
     /// Calcula a taxa de aquecimento média
-    fn calculate_avg_heating_rate(&self, temperature_history: &[Vec<f64>], time_steps: &[f64]) -> f64 {
-        if temperature_history.len() < 2 || time_steps.len() < 2 {
+    fn calculate_avg_heating_rate(&self, results: &super::solver::SimulationResults) -> f64 {
+        if results.executed_steps < 2 {
             return 0.0;
         }
         
-        let initial_temp = temperature_history[0].iter().sum::<f64>() / temperature_history[0].len() as f64;
-        let final_temp = temperature_history.last().unwrap().iter().sum::<f64>() / temperature_history.last().unwrap().len() as f64;
+        // Get first and last temperature snapshots
+        let first_temp = results.temperature.slice(s![.., .., 0]);
+        let last_temp = results.temperature.slice(s![.., .., results.executed_steps-1]);
         
-        let total_time = time_steps.last().unwrap() - time_steps[0];
+        // Calculate average temperature
+        let initial_temp = first_temp.sum() / first_temp.len() as f64;
+        let final_temp = last_temp.sum() / last_temp.len() as f64;
+        
+        // Calculate total time (execution_time)
+        let total_time = results.execution_time;
         
         if total_time <= 0.0 {
             return 0.0;
@@ -312,7 +336,7 @@ impl MetricsAnalyzer {
     }
     
     /// Calcula as métricas por região
-    fn calculate_region_metrics(&self, temperature: &[f64], mesh: &CylindricalMesh) -> HashMap<String, RegionMetrics> {
+    fn calculate_region_metrics(&self, temperature: &ArrayView2<f64>, mesh: &CylindricalMesh) -> HashMap<String, RegionMetrics> {
         let mut region_metrics = HashMap::new();
         
         // Exemplo: dividir em regiões radiais (centro, meio, periferia)
@@ -375,10 +399,10 @@ impl MetricsAnalyzer {
     }
     
     /// Calcula as métricas temporais
-    fn calculate_temporal_metrics(&self, temperature_history: &[Vec<f64>], time_steps: &[f64], max_temp: f64) -> TemporalMetrics {
-        let n_steps = temperature_history.len();
+    fn calculate_temporal_metrics(&self, results: &super::solver::SimulationResults, max_temp: f64) -> TemporalMetrics {
+        let n_steps = results.executed_steps;
         
-        if n_steps < 2 || time_steps.len() < n_steps {
+        if n_steps < 2 {
             return TemporalMetrics {
                 time_to_half_max: 0.0,
                 time_to_90_percent_max: 0.0,
@@ -387,73 +411,72 @@ impl MetricsAnalyzer {
             };
         }
         
-        // Calcular temperaturas médias por passo de tempo
         let mut avg_temps = Vec::with_capacity(n_steps);
-        for temps in temperature_history {
+        
+        // Loop through each time step
+        for step in 0..n_steps {
+            let temps: ArrayView2<f64> = results.temperature.slice(s![.., .., step]);
             let avg = temps.iter().sum::<f64>() / temps.len() as f64;
             avg_temps.push(avg);
         }
         
-        // Tempo para atingir 50% da temperatura máxima
-        let half_max = max_temp * 0.5;
+        let mut max_temp_value = avg_temps[0];
+        let mut max_temp_step = 0;
+        for step in 1..n_steps {
+            if avg_temps[step] > max_temp_value {
+                max_temp_value = avg_temps[step];
+                max_temp_step = step;
+            }
+        }
+        
+        // Calcular o tempo até os 50% da temperatura máxima
+        let half_max = avg_temps[0] + (max_temp_value - avg_temps[0]) * 0.5;
         let mut time_to_half_max = 0.0;
-        for i in 0..n_steps {
+        for i in 1..n_steps {
             if avg_temps[i] >= half_max {
-                if i > 0 {
-                    // Interpolação linear
-                    let t0 = time_steps[i-1];
-                    let t1 = time_steps[i];
-                    let temp0 = avg_temps[i-1];
-                    let temp1 = avg_temps[i];
-                    time_to_half_max = t0 + (t1 - t0) * (half_max - temp0) / (temp1 - temp0);
-                } else {
-                    time_to_half_max = time_steps[i];
-                }
+                // Interpolar
+                let t_prev = (i-1) as f64 * (results.execution_time / (results.executed_steps - 1) as f64);
+                let t_curr = i as f64 * (results.execution_time / (results.executed_steps - 1) as f64);
+                time_to_half_max = t_prev + 
+                    (t_curr - t_prev) * 
+                    ((half_max - avg_temps[i-1]) / (avg_temps[i] - avg_temps[i-1]));
                 break;
             }
         }
         
-        // Tempo para atingir 90% da temperatura máxima
-        let ninety_percent_max = max_temp * 0.9;
+        // Calcular o tempo até 90% da temperatura máxima
+        let ninety_max = avg_temps[0] + (max_temp_value - avg_temps[0]) * 0.9;
         let mut time_to_90_percent_max = 0.0;
-        for i in 0..n_steps {
-            if avg_temps[i] >= ninety_percent_max {
-                if i > 0 {
-                    // Interpolação linear
-                    let t0 = time_steps[i-1];
-                    let t1 = time_steps[i];
-                    let temp0 = avg_temps[i-1];
-                    let temp1 = avg_temps[i];
-                    time_to_90_percent_max = t0 + (t1 - t0) * (ninety_percent_max - temp0) / (temp1 - temp0);
-                } else {
-                    time_to_90_percent_max = time_steps[i];
-                }
+        for i in 1..n_steps {
+            if avg_temps[i] >= ninety_max {
+                // Interpolar
+                let t_prev = (i-1) as f64 * (results.execution_time / (results.executed_steps - 1) as f64);
+                let t_curr = i as f64 * (results.execution_time / (results.executed_steps - 1) as f64);
+                time_to_90_percent_max = t_prev + 
+                    (t_curr - t_prev) * 
+                    ((ninety_max - avg_temps[i-1]) / (avg_temps[i] - avg_temps[i-1]));
                 break;
             }
         }
         
-        // Taxa de aquecimento máxima
+        // Calcular a taxa máxima de aquecimento
         let mut max_heating_rate = 0.0;
         for i in 1..n_steps {
-            let dt = time_steps[i] - time_steps[i-1];
+            let dt = results.execution_time / (results.executed_steps - 1) as f64;
             if dt > 0.0 {
-                let heating_rate = (avg_temps[i] - avg_temps[i-1]) / dt;
-                max_heating_rate = max_heating_rate.max(heating_rate);
+                let rate = (avg_temps[i] - avg_temps[i-1]) / dt;
+                max_heating_rate = f64::max(max_heating_rate, rate);
             }
         }
         
-        // Tempo de estabilização (quando a taxa de variação cai abaixo de 1% da taxa máxima)
-        let threshold = max_heating_rate * 0.01;
-        let mut stabilization_time = time_steps.last().unwrap_or(&0.0).clone();
+        // Calcular o tempo de estabilização (quando a temperatura atinge 95% da final)
+        let stable_threshold = max_temp_value * 0.95;
+        let mut stabilization_time = results.execution_time;
         
-        for i in 1..n_steps {
-            let dt = time_steps[i] - time_steps[i-1];
-            if dt > 0.0 {
-                let heating_rate = (avg_temps[i] - avg_temps[i-1]) / dt;
-                if heating_rate < threshold {
-                    stabilization_time = time_steps[i];
-                    break;
-                }
+        for i in max_temp_step..n_steps {
+            if avg_temps[i] >= stable_threshold {
+                stabilization_time = (results.execution_time / (results.executed_steps - 1) as f64) * i as f64;
+                break;
             }
         }
         
@@ -466,17 +489,23 @@ impl MetricsAnalyzer {
     }
     
     /// Converte um vetor 1D para um array 3D usando as dimensões da malha
-    fn reshape_to_3d(&self, data: &[f64], mesh: &CylindricalMesh) -> Array3<f64> {
+    fn reshape_to_3d(&self, data: &ArrayView2<f64>, mesh: &CylindricalMesh) -> Array3<f64> {
         let (nr, ntheta, nz) = (mesh.nr, mesh.ntheta, mesh.nz);
         
-        let mut array = Array3::zeros((nr, ntheta, nz));
+        // Create a new 3D array from the 2D slice
+        let mut array: Array3<f64> = Array3::zeros((nr, ntheta, nz));
         
+        // Copy data from the flattened 2D view to 3D array
+        // We need to carefully map the indices based on how the original array is laid out
         for i in 0..nr {
             for j in 0..ntheta {
                 for k in 0..nz {
-                    let idx = i * ntheta * nz + j * nz + k;
-                    if idx < data.len() {
-                        array[[i, j, k]] = data[idx];
+                    // Map the 3D coordinates to appropriate access in the 2D view
+                    // This assumes data is stored in a flattened format where rows represent positions
+                    // and columns represent time steps
+                    let flat_idx = i * ntheta * nz + j * nz + k;
+                    if flat_idx < data.len() {
+                        array[[i, j, k]] = data[[flat_idx, 0]];
                     }
                 }
             }
@@ -498,6 +527,17 @@ impl MetricsAnalyzer {
     fn export_to_csv(&self, options: &ExportOptions) -> Result<(), String> {
         let path = Path::new(&options.output_path);
         let mut file = File::create(path).map_err(|e| format!("Erro ao criar arquivo CSV: {}", e))?;
+
+        // Get the simulation results
+        let simulation_state = self.simulation_state.clone();
+        
+        let results = match &simulation_state.results {
+            Some(r) => r,
+            None => return Err("No simulation results available".to_string()),
+        };
+        
+        let mesh = &results.mesh;
+        let temperature = &results.temperature;
         
         // Escrever cabeçalho
         let mut header = String::from("r,theta,z");
@@ -516,247 +556,311 @@ impl MetricsAnalyzer {
         
         header.push('\n');
         file.write_all(header.as_bytes()).map_err(|e| format!("Erro ao escrever cabeçalho CSV: {}", e))?;
-        
+
         // Determinar quais passos de tempo exportar
         let time_steps = match &options.time_steps {
             Some(steps) => steps.clone(),
-            None => vec![self.simulation_state.temperature_history.len() - 1], // Último passo por padrão
+            None => vec![results.executed_steps - 1], // Último passo por padrão
+        };
+
+        // Determinar quais passos de tempo exportar
+        let time_steps = match &options.time_steps {
+            Some(steps) => steps.clone(),
+            None => vec![results.executed_steps - 1], // Último passo por padrão
         };
         
         for &step in &time_steps {
-            if step >= self.simulation_state.temperature_history.len() {
-                continue;
-            }
-            
-            let temperature = &self.simulation_state.temperature_history[step];
-            let mesh = &self.simulation_state.mesh;
-            let temp_3d = self.reshape_to_3d(temperature, mesh);
-            
-            // Escrever dados
-            for i in 0..mesh.nr {
-                let r = mesh.r_coords[i];
-                
-                for j in 0..mesh.ntheta {
-                    let theta = j as f64 * mesh.dtheta;
+                    if step >= results.executed_steps {
+                        continue;
+                    }
                     
-                    for k in 0..mesh.nz {
-                        let z = k as f64 * mesh.dz;
-                        
-                        let mut line = format!("{},{},{}", r, theta, z);
-                        
-                        if options.include_temperature {
-                            line.push_str(&format!(",{}", temp_3d[[i, j, k]]));
+                    let temp_slice = temperature.slice(s![.., .., step]);
+                    
+                    // Escrever dados
+                    for i in 0..mesh.nr {
+                        for j in 0..mesh.ntheta {
+                            for k in 0..mesh.nz {
+                                let r = mesh.r_coords[i];
+                                let theta = j as f64 * (2.0 * std::f64::consts::PI / mesh.ntheta as f64);
+                                let z = mesh.z_coords[k];
+                                
+                                let flat_idx = i * mesh.ntheta * mesh.nz + j * mesh.nz + k;
+                                let temp = if flat_idx < temp_slice.len() {
+                                    temp_slice[flat_idx]
+                                } else {
+                                    0.0 // Safe fallback if out of bounds
+                                };
+                                
+                                let mut line = format!("{},{},{}", r, theta, z);
+                                
+                                if options.include_temperature {
+                                    line.push_str(&format!(",{}", temp));
+                                }
+                                
+                                if options.include_gradient {
+                                    // Calcular gradientes
+                                    let (grad_r, grad_theta, grad_z) = self.calculate_gradient_at_point(i, j, k, &self.reshape_to_3d(&temp_slice, mesh), mesh);
+                                    let grad_mag = (grad_r * grad_r + grad_theta * grad_theta + grad_z * grad_z).sqrt();
+                                    
+                                    line.push_str(&format!(",{},{},{},{}", grad_r, grad_theta, grad_z, grad_mag));
+                                }
+                                
+                                if options.include_heat_flux {
+                                    // Simplificação: assumindo condutividade térmica constante de 50 W/(m·K)
+                                    const THERMAL_CONDUCTIVITY: f64 = 50.0;
+                                    
+                                    // Calcular gradientes
+                                    let (grad_r, grad_theta, grad_z) = self.calculate_gradient_at_point(i, j, k, &self.reshape_to_3d(&temp_slice, mesh), mesh);
+                                    
+                                    // Fluxo de calor = -k * gradiente
+                                    let flux_r = -THERMAL_CONDUCTIVITY * grad_r;
+                                    let flux_theta = -THERMAL_CONDUCTIVITY * grad_theta;
+                                    let flux_z = -THERMAL_CONDUCTIVITY * grad_z;
+                                    let flux_mag = (flux_r * flux_r + flux_theta * flux_theta + flux_z * flux_z).sqrt();
+                                    
+                                    line.push_str(&format!(",{},{},{},{}", flux_r, flux_theta, flux_z, flux_mag));
+                                }
+                                
+                                line.push('\n');
+                                file.write_all(line.as_bytes()).map_err(|e| format!("Erro ao escrever dados CSV: {}", e))?;
+                            }
                         }
-                        
-                        if options.include_gradient {
-                            // Calcular gradientes
-                            let (grad_r, grad_theta, grad_z) = self.calculate_gradient_at_point(i, j, k, &temp_3d, mesh);
-                            let grad_mag = (grad_r * grad_r + grad_theta * grad_theta + grad_z * grad_z).sqrt();
-                            
-                            line.push_str(&format!(",{},{},{},{}", grad_r, grad_theta, grad_z, grad_mag));
-                        }
-                        
-                        if options.include_heat_flux {
-                            // Simplificação: assumindo condutividade térmica constante de 50 W/(m·K)
-                            const THERMAL_CONDUCTIVITY: f64 = 50.0;
-                            
-                            // Calcular gradientes
-                            let (grad_r, grad_theta, grad_z) = self.calculate_gradient_at_point(i, j, k, &temp_3d, mesh);
-                            
-                            // Fluxo de calor = -k * gradiente
-                            let flux_r = -THERMAL_CONDUCTIVITY * grad_r;
-                            let flux_theta = -THERMAL_CONDUCTIVITY * grad_theta;
-                            let flux_z = -THERMAL_CONDUCTIVITY * grad_z;
-                            let flux_mag = (flux_r * flux_r + flux_theta * flux_theta + flux_z * flux_z).sqrt();
-                            
-                            line.push_str(&format!(",{},{},{},{}", flux_r, flux_theta, flux_z, flux_mag));
-                        }
-                        
-                        line.push('\n');
-                        file.write_all(line.as_bytes()).map_err(|e| format!("Erro ao escrever dados CSV: {}", e))?;
                     }
                 }
-            }
-        }
-        
-        // Escrever métricas se solicitado
-        if options.include_metrics {
-            if let Some(metrics) = &self.metrics {
-                file.write_all(b"\n\nMETRICS\n").map_err(|e| format!("Erro ao escrever métricas CSV: {}", e))?;
                 
-                let metrics_data = format!(
-                    "min_temperature,{}\n\
-                     max_temperature,{}\n\
-                     avg_temperature,{}\n\
-                     std_temperature,{}\n\
-                     max_gradient,{}\n\
-                     max_heat_flux,{}\n\
-                     total_energy,{}\n\
-                     avg_heating_rate,{}\n\
-                     time_to_half_max,{}\n\
-                     time_to_90_percent_max,{}\n\
-                     max_heating_rate,{}\n\
-                     stabilization_time,{}\n",
-                    metrics.min_temperature,
-                    metrics.max_temperature,
-                    metrics.avg_temperature,
-                    metrics.std_temperature,
-                    metrics.max_gradient,
-                    metrics.max_heat_flux,
-                    metrics.total_energy,
-                    metrics.avg_heating_rate,
-                    metrics.temporal_metrics.time_to_half_max,
-                    metrics.temporal_metrics.time_to_90_percent_max,
-                    metrics.temporal_metrics.max_heating_rate,
-                    metrics.temporal_metrics.stabilization_time
-                );
+                // Escrever métricas se solicitado
+                if options.include_metrics {
+                    if let Some(metrics) = &self.metrics {
+                        file.write_all(b"\n\nMETRICS\n").map_err(|e| format!("Erro ao escrever métricas CSV: {}", e))?;
+                        
+                        let metrics_data = format!(
+                            "min_temperature,{}\n\
+                             max_temperature,{}\n\
+                             avg_temperature,{}\n\
+                             std_temperature,{}\n\
+                             max_gradient,{}\n\
+                             max_heat_flux,{}\n\
+                             total_energy,{}\n\
+                             avg_heating_rate,{}\n\
+                             time_to_half_max,{}\n\
+                             time_to_90_percent_max,{}\n\
+                             max_heating_rate,{}\n\
+                             stabilization_time,{}\n",
+                            metrics.min_temperature,
+                            metrics.max_temperature,
+                            metrics.avg_temperature,
+                            metrics.std_temperature,
+                            metrics.max_gradient,
+                            metrics.max_heat_flux,
+                            metrics.total_energy,
+                            metrics.avg_heating_rate,
+                            metrics.temporal_metrics.time_to_half_max,
+                            metrics.temporal_metrics.time_to_90_percent_max,
+                            metrics.temporal_metrics.max_heating_rate,
+                            metrics.temporal_metrics.stabilization_time
+                        );
+                        
+                        file.write_all(metrics_data.as_bytes()).map_err(|e| format!("Erro ao escrever métricas CSV: {}", e))?;
+                        
+                        // Escrever métricas por região
+                        file.write_all(b"\nREGION METRICS\n").map_err(|e| format!("Erro ao escrever métricas de região CSV: {}", e))?;
+                        file.write_all(b"region,min_temperature,max_temperature,avg_temperature,volume,energy\n")
+                            .map_err(|e| format!("Erro ao escrever cabeçalho de métricas de região CSV: {}", e))?;
+                        
+                        for (name, region) in &metrics.region_metrics {
+                            let region_data = format!(
+                                "{},{},{},{},{},{}\n",
+                                name,
+                                region.min_temperature,
+                                region.max_temperature,
+                                region.avg_temperature,
+                                region.volume,
+                                region.energy
+                            );
+                            
+                            file.write_all(region_data.as_bytes()).map_err(|e| format!("Erro ao escrever métricas de região CSV: {}", e))?;
+                        }
+                    }
+                }
                 
-                file.write_all(metrics_data.as_bytes()).map_err(|e| format!("Erro ao escrever métricas CSV: {}", e))?;
-                
-                // Escrever métricas por região
-                file.write_all(b"\nREGION METRICS\n").map_err(|e| format!("Erro ao escrever métricas de região CSV: {}", e))?;
-                file.write_all(b"region,min_temperature,max_temperature,avg_temperature,volume,energy\n")
-                    .map_err(|e| format!("Erro ao escrever cabeçalho de métricas de região CSV: {}", e))?;
-                
-                for (name, region) in &metrics.region_metrics {
-                    let region_data = format!(
-                        "{},{},{},{},{},{}\n",
-                        name,
-                        region.min_temperature,
-                        region.max_temperature,
-                        region.avg_temperature,
-                        region.volume,
-                        region.energy
+                // Escrever metadados se solicitado
+                if options.include_metadata {
+                    file.write_all(b"\n\nMETADATA\n").map_err(|e| format!("Erro ao escrever metadados CSV: {}", e))?;
+                    
+                    let metadata = format!(
+                        "nr,{}\n\
+                         ntheta,{}\n\
+                         nz,{}\n\
+                         r_min,{}\n\
+                         r_max,{}\n\
+                         z_min,{}\n\
+                         z_max,{}\n\
+                         time_steps,{}\n\
+                         total_time,{}\n",
+                        mesh.nr,
+                        mesh.ntheta,
+                        mesh.nz,
+                        mesh.r_coords[0],  // r_min
+                        mesh.radius,        // r_max (equivalent to the old r_max)
+                        0.0,                // z_min
+                        mesh.height,        // z_max 
+                        results.executed_steps,
+                        results.execution_time
                     );
                     
-                    file.write_all(region_data.as_bytes()).map_err(|e| format!("Erro ao escrever métricas de região CSV: {}", e))?;
+                    file.write_all(metadata.as_bytes()).map_err(|e| format!("Erro ao escrever metadados CSV: {}", e))?;
                 }
-            }
+                
+                Ok(())
         }
-        
-        // Escrever metadados se solicitado
-        if options.include_metadata {
-            file.write_all(b"\n\nMETADATA\n").map_err(|e| format!("Erro ao escrever metadados CSV: {}", e))?;
-            
-            let metadata = format!(
-                "nr,{}\n\
-                 ntheta,{}\n\
-                 nz,{}\n\
-                 r_min,{}\n\
-                 r_max,{}\n\
-                 z_min,{}\n\
-                 z_max,{}\n\
-                 time_steps,{}\n\
-                 total_time,{}\n",
-                self.simulation_state.mesh.nr,
-                self.simulation_state.mesh.ntheta,
-                self.simulation_state.mesh.nz,
-                self.simulation_state.mesh.r_min,
-                self.simulation_state.mesh.r_max,
-                0.0, // z_min
-                self.simulation_state.mesh.nz as f64 * self.simulation_state.mesh.dz, // z_max
-                self.simulation_state.temperature_history.len(),
-                self.simulation_state.time_steps.last().unwrap_or(&0.0)
-            );
-            
-            file.write_all(metadata.as_bytes()).map_err(|e| format!("Erro ao escrever metadados CSV: {}", e))?;
-        }
-        
-        Ok(())
-    }
     
     /// Exporta os resultados para um arquivo JSON
     fn export_to_json(&self, options: &ExportOptions) -> Result<(), String> {
         let path = Path::new(&options.output_path);
         let file = File::create(path).map_err(|e| format!("Erro ao criar arquivo JSON: {}", e))?;
         
-        // Criar estrutura de dados para exportação
-        let mut export_data = serde_json::Map::new();
+        // Get the simulation results
+        let simulation_state = self.simulation_state.lock().map_err(|e| e.to_string())?;
+        
+        let results = match &simulation_state.results {
+            Some(r) => r,
+            None => return Err("No simulation results available".to_string()),
+        };
+        
+        let mesh = &results.mesh;
+        let temperature = &results.temperature;
+    
+        let mut root = serde_json::Map::new();
         
         // Adicionar metadados se solicitado
         if options.include_metadata {
             let mut metadata = serde_json::Map::new();
             
-            metadata.insert("nr".to_string(), serde_json::Value::Number(serde_json::Number::from(self.simulation_state.mesh.nr)));
-            metadata.insert("ntheta".to_string(), serde_json::Value::Number(serde_json::Number::from(self.simulation_state.mesh.ntheta)));
-            metadata.insert("nz".to_string(), serde_json::Value::Number(serde_json::Number::from(self.simulation_state.mesh.nz)));
-            metadata.insert("r_min".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(self.simulation_state.mesh.r_min).unwrap()));
-            metadata.insert("r_max".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(self.simulation_state.mesh.r_max).unwrap()));
+            metadata.insert("nr".to_string(), serde_json::Value::Number(serde_json::Number::from(mesh.nr)));
+            metadata.insert("ntheta".to_string(), serde_json::Value::Number(serde_json::Number::from(mesh.ntheta)));
+            metadata.insert("nz".to_string(), serde_json::Value::Number(serde_json::Number::from(mesh.nz)));
+            metadata.insert("r_min".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(mesh.r_coords[0]).unwrap()));
+            metadata.insert("r_max".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(mesh.radius).unwrap()));
             metadata.insert("z_min".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(0.0).unwrap()));
-            metadata.insert("z_max".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(self.simulation_state.mesh.nz as f64 * self.simulation_state.mesh.dz).unwrap()));
-            metadata.insert("time_steps".to_string(), serde_json::Value::Number(serde_json::Number::from(self.simulation_state.temperature_history.len())));
-            
-            if let Some(total_time) = self.simulation_state.time_steps.last() {
-                metadata.insert("total_time".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(*total_time).unwrap()));
-            }
-            
-            export_data.insert("metadata".to_string(), serde_json::Value::Object(metadata));
-        }
+            metadata.insert("z_max".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(mesh.height).unwrap()));
+            metadata.insert("time_steps".to_string(), serde_json::Value::Number(serde_json::Number::from(results.executed_steps)));
+            metadata.insert("total_time".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(results.execution_time).unwrap()));
         
+            root.insert("metadata".to_string(), serde_json::Value::Object(metadata));
+    }
+    
         // Adicionar métricas se solicitado
         if options.include_metrics {
             if let Some(metrics) = &self.metrics {
-                export_data.insert("metrics".to_string(), serde_json::to_value(metrics).unwrap());
+                root.insert("metrics".to_string(), serde_json::to_value(metrics).unwrap());
+        }
+    }
+    
+    // Determinar quais passos de tempo exportar
+    let time_steps = match &options.time_steps {
+        Some(steps) => steps.clone(),
+        None => vec![results.executed_steps - 1], // Último passo por padrão
+    };
+    
+    // Adicionar dados de temperatura, gradiente e fluxo de calor
+    let mut results = Vec::new();
+    
+    for &step in &time_steps {
+        if step >= results.executed_steps {
+            continue;
+        }
+        
+        let temp_slice = temperature.slice(s![.., .., step]);
+        let time_step_duration = results.execution_time / (results.executed_steps as f64);
+        let time = step as f64 * time_step_duration;
+        
+        // Criar objeto para este passo de tempo
+        let mut step_data = serde_json::Map::new();
+        step_data.insert("step".to_string(), serde_json::Value::Number(serde_json::Number::from(step)));
+        step_data.insert("time".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(time).unwrap()));
+        
+        // Adicionar dados de temperatura
+        let mut temp_values = Vec::new();
+        for i in 0..mesh.nr {
+            for j in 0..mesh.ntheta {
+                for k in 0..mesh.nz {
+                    let mut point_data = serde_json::Map::new();
+                    
+                    point_data.insert("r".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(mesh.r_coords[i]).unwrap()));
+                    point_data.insert("theta".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(j as f64 * (2.0 * std::f64::consts::PI / mesh.ntheta as f64)).unwrap()));
+                    point_data.insert("z".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(mesh.z_coords[k]).unwrap()));
+                    
+                    let flat_idx = i * mesh.ntheta * mesh.nz + j * mesh.nz + k;
+                    let temp = if flat_idx < temp_slice.len() {
+                        temp_slice[flat_idx]
+                    } else {
+                        0.0 // Safe fallback if out of bounds
+                    };
+                    
+                    point_data.insert("temperature".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(temp).unwrap()));
+                    
+                    temp_values.push(serde_json::Value::Object(point_data));
+                }
             }
         }
         
-        // Determinar quais passos de tempo exportar
-        let time_steps = match &options.time_steps {
-            Some(steps) => steps.clone(),
-            None => vec![self.simulation_state.temperature_history.len() - 1], // Último passo por padrão
-        };
+        step_data.insert("temperature_values".to_string(), serde_json::Value::Array(temp_values));
         
-        // Adicionar dados de temperatura, gradiente e fluxo de calor
-        let mut results = Vec::new();
-        
-        for &step in &time_steps {
-            if step >= self.simulation_state.temperature_history.len() {
-                continue;
-            }
+        // Adicionar dados de gradiente e fluxo de calor
+        if options.include_gradient || options.include_heat_flux {
+            let mut gradient_data = Vec::new();
             
-            let temperature = &self.simulation_state.temperature_history[step];
-            let mesh = &self.simulation_state.mesh;
-            let temp_3d = self.reshape_to_3d(temperature, mesh);
+            // Simplificação: assumindo condutividade térmica constante de 50 W/(m·K)
+            const THERMAL_CONDUCTIVITY: f64 = 50.0;
             
-            let time = if step < self.simulation_state.time_steps.len() {
-                self.simulation_state.time_steps[step]
-            } else {
-                0.0
-            };
-            
-            let mut step_data = serde_json::Map::new();
-            step_data.insert("time_step".to_string(), serde_json::Value::Number(serde_json::Number::from(step)));
-            step_data.insert("time".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(time).unwrap()));
-            
-            if options.include_temperature {
-                let mut temp_data = Vec::new();
-                
-                for i in 0..mesh.nr {
-                    for j in 0..mesh.ntheta {
-                        for k in 0..mesh.nz {
-                            let r = mesh.r_coords[i];
-                            let theta = j as f64 * mesh.dtheta;
-                            let z = k as f64 * mesh.dz;
-                            
-                            let mut point_data = serde_json::Map::new();
-                            point_data.insert("r".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(r).unwrap()));
-                            point_data.insert("theta".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(theta).unwrap()));
-                            point_data.insert("z".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(z).unwrap()));
-                            point_data.insert("temperature".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(temp_3d[[i, j, k]]).unwrap()));
-                            
-                            temp_data.push(serde_json::Value::Object(point_data));
+            for i in 0..mesh.nr {
+                for j in 0..mesh.ntheta {
+                    for k in 0..mesh.nz {
+                        let mut point_data = serde_json::Map::new();
+                        
+                        point_data.insert("r".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(mesh.r_coords[i]).unwrap()));
+                        point_data.insert("theta".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(j as f64 * (2.0 * std::f64::consts::PI / mesh.ntheta as f64)).unwrap()));
+                        point_data.insert("z".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(mesh.z_coords[k]).unwrap()));
+                        
+                        // Calcular gradientes
+                        let (grad_r, grad_theta, grad_z) = self.calculate_gradient_at_point(i, j, k, &self.reshape_to_3d(temp_slice, mesh), mesh);
+                        let grad_mag = (grad_r * grad_r + grad_theta * grad_theta + grad_z * grad_z).sqrt();
+                        
+                        if options.include_gradient {
+                            point_data.insert("gradient_r".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(grad_r).unwrap()));
+                            point_data.insert("gradient_theta".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(grad_theta).unwrap()));
+                            point_data.insert("gradient_z".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(grad_z).unwrap()));
+                            point_data.insert("gradient_magnitude".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(grad_mag).unwrap()));
                         }
+                        
+                        if options.include_heat_flux {
+                            // Fluxo de calor = -k * gradiente
+                            let flux_r = -THERMAL_CONDUCTIVITY * grad_r;
+                            let flux_theta = -THERMAL_CONDUCTIVITY * grad_theta;
+                            let flux_z = -THERMAL_CONDUCTIVITY * grad_z;
+                            let flux_mag = (flux_r * flux_r + flux_theta * flux_theta + flux_z * flux_z).sqrt();
+                            
+                            point_data.insert("heat_flux_r".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(flux_r).unwrap()));
+                            point_data.insert("heat_flux_theta".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(flux_theta).unwrap()));
+                            point_data.insert("heat_flux_z".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(flux_z).unwrap()));
+                            point_data.insert("heat_flux_magnitude".to_string(), serde_json::Value::Number(serde_json::Number::from_f64(flux_mag).unwrap()));
+                        }
+                        
+                        gradient_data.push(serde_json::Value::Object(point_data));
                     }
                 }
-                
-                step_data.insert("temperature_data".to_string(), serde_json::Value::Array(temp_data));
             }
             
-            if options.include_gradient || options.include_heat_flux {
-                let mut gradient_data = Vec::new();
-                
-                // Simplificação: assumindo condutividade térmica constante de 50 W/(m·K)
-                const THERMAL_CONDUCTIVITY: f64 = 50.0;
+            if options.include_gradient {
+                step_data.insert("gradient_values".to_string(), serde_json::Value::Array(gradient_data.clone()));
+            }
+            
+            if options.include_heat_flux {
+                step_data.insert("heat_flux_values".to_string(), serde_json::Value::Array(gradient_data));
+            }
+        }
+        
+        results.push(serde_json::Value::Object(step_data));
                 
                 for i in 0..mesh.nr {
                     for j in 0..mesh.ntheta {
@@ -809,7 +913,7 @@ impl MetricsAnalyzer {
             }
             
             results.push(serde_json::Value::Object(step_data));
-        }
+        
         
         export_data.insert("results".to_string(), serde_json::Value::Array(results));
         
@@ -1115,7 +1219,7 @@ impl MetricsAnalyzer {
              O fluxo de calor máximo foi de {:.2} W/m², localizado na região de maior gradiente de temperatura ({:.2} °C/m). \
              A energia total armazenada no sistema foi de {:.2e} J.\n\n",
             metrics.max_temperature,
-            self.simulation_state.time_steps.last().unwrap_or(&0.0),
+            self.simulation_state.parameters.time_steps.last().unwrap_or(&0.0),
             metrics.avg_temperature,
             metrics.std_temperature,
             if metrics.std_temperature / metrics.avg_temperature < 0.1 { "relativamente uniforme" } else { "não uniforme" },
@@ -1279,4 +1383,4 @@ mod tests {
         // Limpar
         std::fs::remove_file(path).unwrap();
     }
-}
+}   
