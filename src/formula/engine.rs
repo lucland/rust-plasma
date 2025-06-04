@@ -134,7 +134,7 @@ impl ParameterValue {
             ParameterValue::Boolean(b) => (*b).into(),
             ParameterValue::String(s) => s.clone().into(),
             ParameterValue::Array(arr) => {
-                let mut rhai_array = Array::new();
+                let mut rhai_array = rhai::Array::new();
                 for item in arr {
                     rhai_array.push(item.to_dynamic());
                 }
@@ -159,16 +159,16 @@ impl ParameterValue {
         } else if value.is_bool() {
             Ok(ParameterValue::Boolean(value.as_bool().unwrap()))
         } else if value.is_string() {
-            Ok(ParameterValue::String(value.as_string().unwrap().to_string()))
+            Ok(ParameterValue::String(value.clone().into_string().unwrap()))
         } else if value.is_array() {
-            let rhai_array = value.clone().into_array().unwrap();
+            let rhai_array = value.clone().try_cast::<rhai::Array>().unwrap();
             let mut arr = Vec::new();
             for item in rhai_array {
                 arr.push(ParameterValue::from_dynamic(&item)?);
             }
             Ok(ParameterValue::Array(arr))
         } else if value.is_map() {
-            let rhai_map = value.clone().into_map().unwrap();
+            let rhai_map = value.clone().try_cast::<rhai::Map>().unwrap();
             let mut map = HashMap::new();
             for (key, value) in rhai_map {
                 let key_str = key.to_string();
@@ -777,9 +777,9 @@ mod tests {
         let string_value = ParameterValue::String("hello".to_string());
         let dynamic_string = string_value.to_dynamic();
         assert!(dynamic_string.is_string());
-        assert_eq!(dynamic_string.as_string().unwrap(), "hello");
+        assert_eq!(dynamic_string.clone().into_string().unwrap(), "hello");
         
-        let converted_string = ParameterValue::from_dynamic(&dynamic_string).unwrap();
+        let converted_string = ParameterValue::from_dynamic(&dynamic_string.clone()).unwrap();
         match converted_string {
             ParameterValue::String(s) => assert_eq!(s, "hello"),
             _ => panic!("Tipo incorreto após conversão"),
