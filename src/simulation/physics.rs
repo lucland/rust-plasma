@@ -2,12 +2,21 @@
 // File: simulation/physics.rs
 // Main Responsibility: Implement physical models for heat transfer.
 //
-// This file implements the physical models for heat transfer, including radiation
-// and convection sources. It defines the PlasmaTorch class with advanced
-// configuration options, calculates view factors between torches and material
-// points, and provides material property handling for temperature-dependent
-// behavior. This component is responsible for the accurate physical modeling of
-// heat transfer phenomena in the plasma furnace.
+// This file implements the physical models for heat transfer. It defines the
+// PlasmaTorch class with advanced configuration options, calculates view factors
+// between torches and material points, and includes functions for calculating
+// heat source terms (radiation, convection) and temperature/phase fraction
+// updates, utilizing material properties defined in `materials.rs`. This
+// component is responsible for the accurate physical modeling of heat transfer
+// phenomena in the plasma furnace.
+//
+// Main functions/structs:
+// - PlasmaTorch: Represents a plasma torch with its physical characteristics.
+// - calculate_radiation_source: Computes radiation heat from torches.
+// - calculate_convection_source: Computes convection heat from torches.
+// - calculate_temperature_and_fractions: Determines temperature and phase
+//   fractions from enthalpy.
+// - effective_specific_heat: Calculates effective specific heat during phase change.
 //-----------------------------------------------------------------------------
 
 // Implementação aprimorada para suporte a múltiplas tochas e configurações avançadas
@@ -15,77 +24,13 @@
 use ndarray::{Array2, Axis};
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
+use crate::simulation::materials::MaterialProperties;
 
 /// Constante de Stefan-Boltzmann (W/(m²·K⁴))
 pub const STEFAN_BOLTZMANN: f64 = 5.67e-8;
 
 /// Estrutura que representa as propriedades do material
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MaterialProperties {
-    /// Nome do material
-    pub name: String,
-    /// Densidade (kg/m³)
-    pub density: f64,
-    /// Conteúdo de umidade (%)
-    pub moisture_content: f64,
-    /// Capacidade térmica específica (J/(kg·K))
-    pub specific_heat: f64,
-    /// Condutividade térmica (W/(m·K))
-    pub thermal_conductivity: f64,
-    /// Emissividade (0-1)
-    pub emissivity: f64,
-    /// Temperatura de fusão (°C)
-    pub melting_point: Option<f64>,
-    /// Calor latente de fusão (J/kg)
-    pub latent_heat_fusion: Option<f64>,
-    /// Temperatura de vaporização (°C)
-    pub vaporization_point: Option<f64>,
-    /// Calor latente de vaporização (J/kg)
-    pub latent_heat_vaporization: Option<f64>,
-}
 
-impl MaterialProperties {
-    /// Cria uma nova instância de propriedades de material com valores padrão
-    pub fn new(name: &str, density: f64, specific_heat: f64, thermal_conductivity: f64) -> Self {
-        Self {
-            name: name.to_string(),
-            density,
-            moisture_content: 0.0,
-            specific_heat,
-            thermal_conductivity,
-            emissivity: 0.9,
-            melting_point: None,
-            latent_heat_fusion: None,
-            vaporization_point: None,
-            latent_heat_vaporization: None,
-        }
-    }
-
-    /// Calcula a capacidade térmica efetiva considerando mudanças de fase
-    pub fn effective_specific_heat(&self, temperature: f64, delta_t: f64) -> f64 {
-        let mut c_eff = self.specific_heat;
-
-        // Adicionar efeito da mudança de fase (fusão)
-        if let (Some(mp), Some(lhf)) = (self.melting_point, self.latent_heat_fusion) {
-            // Intervalo de suavização para a mudança de fase
-            let phase_change_interval = 10.0;
-            if (temperature - mp).abs() < phase_change_interval {
-                c_eff += lhf / (2.0 * phase_change_interval);
-            }
-        }
-
-        // Adicionar efeito da mudança de fase (vaporização)
-        if let (Some(vp), Some(lhv)) = (self.vaporization_point, self.latent_heat_vaporization) {
-            // Intervalo de suavização para a mudança de fase
-            let phase_change_interval = 10.0;
-            if (temperature - vp).abs() < phase_change_interval {
-                c_eff += lhv / (2.0 * phase_change_interval);
-            }
-        }
-
-        c_eff
-    }
-}
 
 /// Estrutura que representa uma tocha de plasma com configuração avançada
 #[derive(Debug, Clone, Serialize, Deserialize)]
