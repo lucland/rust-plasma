@@ -155,7 +155,7 @@ pub struct SharedSimulationState {
     /// Flag para solicitar cancelamento da simulação
     cancel_flag: Arc<AtomicBool>,
     /// Handle para a thread da simulação (se estiver rodando)
-    simulation_thread: Mutex<Option<JoinHandle<()>>>,
+    simulation_thread: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
 impl SharedSimulationState {
@@ -164,7 +164,7 @@ impl SharedSimulationState {
         Self {
             state: Arc::new(Mutex::new(SimulationState::new(parameters))),
             cancel_flag: Arc::new(AtomicBool::new(false)),
-            simulation_thread: Mutex::new(None),
+            simulation_thread: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -301,13 +301,14 @@ impl SharedSimulationState {
                     }
                     SimulationStatus::Failed => {
                         if state.status != SimulationStatus::Failed {
-                            state.fail(if cancel_flag_clone.load(Ordering::Relaxed) {
+                            let error_message_content = if cancel_flag_clone.load(Ordering::Relaxed) {
                                 "Simulation cancelled by user".to_string()
                             } else {
                                 state.error_message.clone().unwrap_or_else(|| "Simulation failed".to_string())
-                            });
+                            };
+                            state.fail(error_message_content);
                         }
-                    }
+                  }
                     _ => {}
                 }
             } else {
@@ -336,6 +337,8 @@ impl SharedSimulationState {
 
 #[cfg(test)]
 mod tests {
+    use crate::simulation::mesh::CylindricalMesh;
+
     use super::*;
     use super::super::physics::PlasmaTorch;
     use std::time::Duration;
@@ -343,7 +346,7 @@ mod tests {
     #[test]
     fn test_simulation_state_flow() {
         let mut params = SimulationParameters::new(1.0, 0.5, 10, 20);
-        params.add_torch(PlasmaTorch::new(0.0, 0.0, 90.0, 0.0, 100.0, 0.01, 5000.0));
+        params.add_torch(PlasmaTorch::new("torch1", 0.0, 0.0, 90.0, 0.0, 100.0, 0.01, 5000.0, 1.0));
 
         let shared_state = SharedSimulationState::new(params.clone());
 
@@ -380,10 +383,12 @@ mod tests {
              let mut state_guard = shared_state.state.lock().unwrap();
              let dummy_results = SimulationResults {
                  parameters: params.clone(),
-                 mesh: super::super::mesh::CylindricalMesh::new(params.height, params.radius, params.nr, params.nz, params.ntheta).unwrap(),
+                 mesh:  CylindricalMesh::new(params.height, params.radius, params.nr, params.nz, params.ntheta),
                  temperature: ndarray::Array3::zeros((params.nr, params.nz, 1)),
                  execution_time: 0.0,
                  phase_change_info: None,
+                 enthalpy: ndarray::Array3::zeros((params.nr, params.nz, 1)),
+                 executed_steps: 1,
              };
              state_guard.complete(dummy_results);
             assert_eq!(state_guard.status, SimulationStatus::Completed);
