@@ -325,7 +325,7 @@ impl HeatSolver {
         let mut enthalpy_history = Array3::<f64>::zeros((params.nr, params.nz, params.time_steps + 1));
         
         // Inicializar arrays de mudança de fase se necessário
-        let (mut melt_fraction, melt_fraction_history, mut vapor_fraction, vapor_fraction_history) = 
+        let (mut melt_fraction, mut melt_fraction_history, mut vapor_fraction, mut vapor_fraction_history) = 
             if params.enable_phase_changes && 
                (params.material.melting_point.is_some() || params.material.vaporization_point.is_some()) {
                 
@@ -570,9 +570,7 @@ impl HeatSolver {
             );
         }
         
-        // Calcular termo fonte das tochas (assumido constante no passo de tempo)
-        sources.torches = self.mesh.distribute_torch_heat(&self.params.torches);
-        
+        // Termo fonte das tochas é incorporado em radiation e convection.
         sources
     }
     
@@ -587,12 +585,14 @@ impl HeatSolver {
 
         // Usa self.temperature (T^n) e self.enthalpy (H^n) como estado inicial
         // e atualiza self.enthalpy (para H^{n+1}) in-place.
+        // Clone temperature to avoid borrowing self both mutably and immutably
+        let temperature_clone = self.temperature.clone();
         self.solve_linear_system_explicit_enthalpy(
             max_iterations,
             tolerance,
             omega,
             sources,
-            &self.temperature,
+            &temperature_clone
         )
     }
 
@@ -641,8 +641,8 @@ impl HeatSolver {
         let sources_ref = sources;
         let rho_n_ref = &rho_n;
 
-        Zip::indexed(&mut enthalpy_np1).par_apply(|(i, j), h_np1| {
-            let r = mesh_ref.r_nodes[i];
+        Zip::indexed(&mut enthalpy_np1).par_for_each(|(i, j), h_np1| {
+            let r = mesh_ref.r_coords[i];
             let dr = mesh_ref.dr;
             let dz = mesh_ref.dz;
             let vol = mesh_ref.cell_volumes[[i, j]];
@@ -651,9 +651,9 @@ impl HeatSolver {
             let rho_ij_n = rho_n_ref[[i, j]];
 
             // Termo fonte total S = S_torch + S_rad + S_conv (W/m³)
-            let source_term_volumetric = sources_ref.torches[[i, j]]
-                                           + sources_ref.radiation[[i, j]]
-                                           + sources_ref.convection[[i, j]];
+            let source_term_volumetric = sources_ref.radiation[[i, j]]
+                                           + sources_ref.convection[[i, j]]
+                                           + sources_ref.phase_change[[i, j]];
             let source_term = source_term_volumetric * vol;
 
             // Termos de difusão (baseados em T^n) - V * nabla.(k^n nabla T^n) (W)
@@ -662,19 +662,19 @@ impl HeatSolver {
             // Termo radial: (Flux_e - Flux_w)
             if i == 0 {
                 let k_face_e = (k_n_ref[[0, j]] + k_n_ref[[1, j]]) / 2.0;
-                let area_e = mesh_ref.face_areas_r[[0]];
+                let area_e = (mesh_ref.r_coords[0] + mesh_ref.dr / 2.0) * mesh_ref.dtheta * mesh_ref.dz;
                 let grad_t_e = (temperature_n_ref[[1, j]] - temperature_n_ref[[0, j]]) / dr;
                 diffusion_term_tn += k_face_e * area_e * grad_t_e;
 
             } else {
                 let k_face_w = (k_n_ref[[i, j]] + k_n_ref[[i - 1, j]]) / 2.0;
-                let area_w = mesh_ref.face_areas_r[[i - 1]];
+                let area_w = (mesh_ref.r_coords[i - 1] + mesh_ref.dr / 2.0) * mesh_ref.dtheta * mesh_ref.dz;
                 let grad_t_w = (temperature_n_ref[[i, j]] - temperature_n_ref[[i - 1, j]]) / dr;
                 diffusion_term_tn -= k_face_w * area_w * grad_t_w;
 
                 if i < nr - 1 {
                     let k_face_e = (k_n_ref[[i, j]] + k_n_ref[[i + 1, j]]) / 2.0;
-                    let area_e = mesh_ref.face_areas_r[[i]];
+                    let area_e = (mesh_ref.r_coords[i] + mesh_ref.dr / 2.0) * mesh_ref.dtheta * mesh_ref.dz;
                     let grad_t_e = (temperature_n_ref[[i + 1, j]] - temperature_n_ref[[i, j]]) / dr;
                     diffusion_term_tn += k_face_e * area_e * grad_t_e;
                 } else {
@@ -685,7 +685,7 @@ impl HeatSolver {
             // Termo axial: (Flux_n - Flux_s)
             if j > 0 {
                 let k_face_s = (k_n_ref[[i, j]] + k_n_ref[[i, j - 1]]) / 2.0;
-                let area_s = mesh_ref.face_areas_z[[i]];
+                let area_s = mesh_ref.r_coords[i] * mesh_ref.dr * mesh_ref.dtheta;
                 let grad_t_s = (temperature_n_ref[[i, j]] - temperature_n_ref[[i, j - 1]]) / dz;
                 diffusion_term_tn -= k_face_s * area_s * grad_t_s;
             } else {
@@ -693,7 +693,7 @@ impl HeatSolver {
             }
             if j < nz - 1 {
                 let k_face_n = (k_n_ref[[i, j]] + k_n_ref[[i, j + 1]]) / 2.0;
-                let area_n = mesh_ref.face_areas_z[[i]];
+                let area_n = mesh_ref.r_coords[i] * mesh_ref.dr * mesh_ref.dtheta;
                 let grad_t_n = (temperature_n_ref[[i, j + 1]] - temperature_n_ref[[i, j]]) / dz;
                 diffusion_term_tn += k_face_n * area_n * grad_t_n;
             } else {
@@ -719,43 +719,36 @@ impl HeatSolver {
 
     /// Atualiza os campos de temperatura e fração de fase a partir do campo de entalpia atual.
     fn update_temperature_and_fractions_from_enthalpy(&mut self) -> Result<(), String> {
-        let nr = self.params.nr;
-        let nz = self.params.nz;
+        let material_props = &self.params.material; // Immutable borrow for material properties
+        let enable_phase_changes = self.params.enable_phase_changes; // Copy bool
 
-        // Arrays temporários para evitar borrows múltiplos de self
-        let mut temp_updated = Array2::<f64>::zeros((nr, nz));
-        let mut melt_frac_updated = self.melt_fraction.as_ref().map(|_| Array2::zeros((nr, nz)));
-        let mut vapor_frac_updated = self.vapor_fraction.as_ref().map(|_| Array2::zeros((nr, nz)));
+        // Update temperature
+        Zip::from(&mut self.temperature)
+            .and(&self.enthalpy)
+            .par_for_each(|temp_val, &h_val| {
+                let (t, _fm, _fv) = calculate_temperature_and_fractions(h_val, material_props, 0.0);
+                *temp_val = t;
+            });
 
-        let enthalpy_ref = &self.enthalpy;
-        let params_ref = &self.params;
-
-        Zip::indexed(enthalpy_ref).par_apply(|(i, j), &h| {
-            let props = &params_ref.material;
-            let (t, fm, fv) = calculate_temperature_and_fractions(h, props, 0.0);
-            temp_updated[[i, j]] = t;
-            if let Some(mf_arr) = melt_frac_updated.as_mut() {
-                if params_ref.enable_phase_changes {
-                    mf_arr[[i, j]] = fm;
-                }
+        // Update melt fraction if enabled and present
+        if enable_phase_changes {
+            if let Some(melt_fraction_arr) = &mut self.melt_fraction {
+                Zip::from(melt_fraction_arr)
+                    .and(&self.enthalpy)
+                    .par_for_each(|mf_val, &h_val| {
+                        let (_t, fm, _fv) = calculate_temperature_and_fractions(h_val, material_props, 0.0);
+                        *mf_val = fm;
+                    });
             }
-            if let Some(vf_arr) = vapor_frac_updated.as_mut() {
-                if params_ref.enable_phase_changes {
-                    vf_arr[[i, j]] = fv;
-                }
-            }
-        });
 
-        // Atualizar os campos do struct HeatSolver
-        self.temperature.assign(&temp_updated);
-        if let Some(mf_arr) = melt_frac_updated {
-            if let Some(mf_field) = self.melt_fraction.as_mut() {
-                mf_field.assign(&mf_arr);
-            }
-        }
-        if let Some(vf_arr) = vapor_frac_updated {
-            if let Some(vf_field) = self.vapor_fraction.as_mut() {
-                vf_field.assign(&vf_arr);
+            // Update vapor fraction if enabled and present
+            if let Some(vapor_fraction_arr) = &mut self.vapor_fraction {
+                Zip::from(vapor_fraction_arr)
+                    .and(&self.enthalpy)
+                    .par_for_each(|vf_val, &h_val| {
+                        let (_t, _fm, fv) = calculate_temperature_and_fractions(h_val, material_props, 0.0);
+                        *vf_val = fv;
+                    });
             }
         }
 
