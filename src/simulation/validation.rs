@@ -12,7 +12,7 @@
 
 // Implementação do módulo de validação de modelos para o simulador de fornalha de plasma
 
-use ndarray::{Array1, Array2, Array3, ArrayView3};
+use ndarray::{s, Array1, Array2, Array3, ArrayView3};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
@@ -271,13 +271,15 @@ impl ModelValidator {
         
         let reference_data = self.reference_data.as_ref().unwrap();
         
-        if self.simulation_state.temperature_history.is_empty() {
-            return Err("Histórico de temperatura vazio".to_string());
-        }
+        // Get temperature data from simulation results
+        let results = match self.simulation_state.get_results() {
+            Some(r) => r,
+            None => return Err("No simulation results available".to_string())
+        };
         
-        // Obter a temperatura final
-        let final_temperature = &self.simulation_state.temperature_history[self.simulation_state.temperature_history.len() - 1];
-        let mesh = &self.simulation_state.mesh;
+        // Get the last temperature snapshot from results
+        let final_temperature = &results.temperature;
+        let mesh = &results.mesh;
         
         // Interpolar valores simulados nos pontos de referência
         let mut simulated_values = Vec::with_capacity(reference_data.coordinates.len());
@@ -321,7 +323,7 @@ impl ModelValidator {
     }
     
     /// Interpola o valor simulado em um ponto específico
-    fn interpolate_value(&self, r: f64, theta: f64, z: f64, temperature: &[f64], mesh: &CylindricalMesh) -> f64 {
+    fn interpolate_value(&self, r: f64, theta: f64, z: f64, temperature: &ndarray::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::Dim<[usize; 3]>>, mesh: &CylindricalMesh) -> f64 {
         // Encontrar os índices da célula que contém o ponto
         let i_r = self.find_index(r, &mesh.r_coords);
         let i_theta = (theta / mesh.dtheta).floor() as usize;
@@ -360,7 +362,7 @@ impl ModelValidator {
     }
     
     /// Encontra o índice do elemento mais próximo em um vetor ordenado
-    fn find_index(&self, value: f64, coords: &[f64]) -> usize {
+    fn find_index(&self, value: f64, coords: &ndarray::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::Dim<[usize; 1]>>) -> usize {
         let mut left = 0;
         let mut right = coords.len() - 1;
         
@@ -378,11 +380,11 @@ impl ModelValidator {
     }
     
     /// Obtém a temperatura em um ponto específico da malha
-    fn get_temperature_at(&self, i: usize, j: usize, k: usize, temperature: &[f64], mesh: &CylindricalMesh) -> f64 {
-        let idx = i * mesh.ntheta * mesh.nz + j * mesh.nz + k;
-        
-        if idx < temperature.len() {
-            temperature[idx]
+    fn get_temperature_at(&self, i: usize, j: usize, k: usize, temperature: &ndarray::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::Dim<[usize; 3]>>, mesh: &CylindricalMesh) -> f64 {
+        // Access temperature using array indexing for 3D array
+        // Array dimensions are [r, theta, z] so we access as temperature[[i, j, k]]
+        if i < temperature.shape()[0] && j < temperature.shape()[1] && k < temperature.shape()[2] {
+            temperature[[i, j, k]]
         } else {
             0.0
         }
@@ -440,7 +442,7 @@ impl ModelValidator {
         };
         
         // Calcular erro máximo absoluto
-        let mut max_abs_error = 0.0;
+        let mut max_abs_error: f64 = 0.0;
         for i in 0..reference.len() {
             let abs_error = (reference[i] - simulated[i]).abs();
             max_abs_error = max_abs_error.max(abs_error);
@@ -472,9 +474,10 @@ impl ModelValidator {
         
         // Exemplo: dividir em regiões radiais (centro, meio, periferia)
         let regions = vec![
-            ("Centro", 0.0, self.simulation_state.mesh.r_max / 3.0),
-            ("Meio", self.simulation_state.mesh.r_max / 3.0, 2.0 * self.simulation_state.mesh.r_max / 3.0),
-            ("Periferia", 2.0 * self.simulation_state.mesh.r_max / 3.0, self.simulation_state.mesh.r_max),
+            // Get mesh from results if available, otherwise use default values
+            ("Centro", 0.0, self.simulation_state.get_results().map_or(1.0, |r| r.mesh.radius) / 3.0),
+            ("Meio", self.simulation_state.get_results().map_or(1.0, |r| r.mesh.radius) / 3.0, 2.0 * self.simulation_state.get_results().map_or(1.0, |r| r.mesh.radius) / 3.0),
+            ("Periferia", 2.0 * self.simulation_state.get_results().map_or(1.0, |r| r.mesh.radius) / 3.0, self.simulation_state.get_results().map_or(1.0, |r| r.mesh.radius)),
         ];
         
         for (name, r_min, r_max) in regions {
@@ -733,7 +736,19 @@ impl ModelValidator {
     
     /// Cria dados de referência sintéticos para testes
     pub fn create_synthetic_reference_data(&self, num_points: usize, error_level: f64) -> ReferenceData {
-        let mesh = &self.simulation_state.mesh;
+        // Get mesh from results if available, otherwise create a default mesh
+        let mesh = if let Some(results) = self.simulation_state.get_results() {
+            &results.mesh
+        } else {
+            // If no simulation results available, create a temporary mesh for testing
+            let params = &self.simulation_state.parameters;
+            static TEMP_MESH: std::sync::OnceLock<super::mesh::CylindricalMesh> = std::sync::OnceLock::new();
+            TEMP_MESH.get_or_init(|| {
+                super::mesh::CylindricalMesh::new(
+                    params.height, params.radius, params.nr, params.nz, params.ntheta
+                )
+            })
+        };
         
         let mut coordinates = Vec::with_capacity(num_points);
         let mut values = Vec::with_capacity(num_points);
@@ -743,7 +758,8 @@ impl ModelValidator {
         
         for _ in 0..num_points {
             // Coordenadas aleatórias
-            let r = mesh.r_min + (mesh.r_max - mesh.r_min) * rand::random::<f64>();
+            // Use r coordinate from 0 to radius
+            let r = mesh.radius * rand::random::<f64>();
             let theta = mesh.dtheta * mesh.ntheta as f64 * rand::random::<f64>();
             let z = mesh.dz * mesh.nz as f64 * rand::random::<f64>();
             
@@ -751,8 +767,8 @@ impl ModelValidator {
             
             // Valor de referência (simplificado)
             // Em uma implementação real, isso seria baseado em uma solução analítica ou dados experimentais
-            let reference_value = 100.0 + 400.0 * (1.0 - r / mesh.r_max);
-            
+            let reference_value = 100.0 + 400.0 * (1.0 - r / mesh.radius);
+
             // Adicionar ruído para simular erro experimental
             let noise = error_level * (2.0 * rand::random::<f64>() - 1.0) * reference_value;
             values.push(reference_value + noise);
@@ -778,32 +794,52 @@ mod tests {
     use crate::simulation::state::SimulationState;
     
     fn create_test_simulation_state() -> SimulationState {
-        // Criar malha de teste
-        let mesh = CylindricalMesh::new(10, 8, 10, 0.1, 1.0);
+        // Create test parameters
+        let params = super::parameters::SimulationParameters {
+            height: 10.0,
+            radius: 8.0,
+            nr: 10,
+            nz: 10,
+            ntheta: 10,
+            ..Default::default()
+        };
         
-        // Criar estado de simulação
-        let mut state = SimulationState::new(mesh);
+        // Create simulation state with parameters
+        let mut state = SimulationState::new(&params);
         
-        // Adicionar dados de temperatura
-        let mut temperature = vec![25.0; mesh.total_cells()];
+        // Create the mesh
+        let mesh = super::mesh::CylindricalMesh::new(
+            params.height, params.radius, params.nr, params.nz, params.ntheta
+        );
         
-        // Adicionar temperatura com distribuição radial
+        // Create 3D temperature array
+        let mut temperature = ndarray::Array3::<f64>::zeros((mesh.nr, mesh.ntheta, mesh.nz));
+        
+        // Add radial temperature distribution
         for i in 0..mesh.nr {
+            let r = mesh.r_coords[i];
             for j in 0..mesh.ntheta {
                 for k in 0..mesh.nz {
-                    let idx = i * mesh.ntheta * mesh.nz + j * mesh.nz + k;
-                    let r = mesh.r_coords[i];
-                    
-                    // Temperatura mais alta no centro, diminuindo com o raio
-                    temperature[idx] = 500.0 * (1.0 - r / mesh.r_max) + 25.0;
+                    // Higher temperature at center, decreasing with radius
+                    temperature[[i, j, k]] = 500.0 * (1.0 - r / mesh.radius) + 25.0;
                 }
             }
         }
         
-        state.temperature_history.push(temperature);
+        // Create a simulation results object
+        let mut results = super::solver::SimulationResults {
+            mesh,
+            temperature: temperature.clone(),
+            velocity: ndarray::Array3::<f64>::zeros((mesh.nr, mesh.ntheta, mesh.nz)),
+            pressure: ndarray::Array3::<f64>::zeros((mesh.nr, mesh.ntheta, mesh.nz)),
+            dt: 0.01,
+            executed_steps: 1,
+            enthalpy: ndarray::Array3::<f64>::zeros((mesh.nr, mesh.ntheta, mesh.nz)),
+        };
         
-        // Adicionar passos de tempo
-        state.time_steps = vec![10.0];
+        // Set the results in the state
+        state.set_results(results);
+        state.status = super::state::SimulationStatus::Completed;
         
         state
     }
