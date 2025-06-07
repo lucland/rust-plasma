@@ -1,0 +1,243 @@
+/**
+ * File: css/components/buttons.css
+ * Responsibility: Define styles for buttons and button-like controls
+ * 
+ * This file contains styles for:
+ * - Primary, secondary, and tertiary buttons
+ * - Button sizes
+ * - Button states (hover, active, disabled)
+ * - Button groups
+ * - Icon buttons
+ */
+
+/* Base button */
+.btn {
+  display: inline-block;
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  vertical-align: middle;
+  user-select: none;
+  padding: var(--spacing-2) var(--spacing-4);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  border-radius: var(--border-radius-md);
+  transition: color var(--transition-fast) ease-in-out, 
+              background-color var(--transition-fast) ease-in-out, 
+              border-color var(--transition-fast) ease-in-out, 
+              box-shadow var(--transition-fast) ease-in-out;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.btn:focus {
+  outline: 0;
+}
+
+/* Button variants */
+.btn-primary {
+  color: white;
+  background-color: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-600);
+  border-color: var(--color-primary-700);
+}
+
+.btn-primary:focus {
+  box-shadow: 0 0 0 3px rgba(74, 126, 248, 0.25);
+}
+
+.btn-primary:active {
+  background-color: var(--color-primary-700);
+  border-color: var(--color-primary-800);
+}
+
+.btn-secondary {
+  color: white;
+  background-color: var(--color-secondary-500);
+  border-color: var(--color-secondary-500);
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-secondary-600);
+  border-color: var(--color-secondary-700);
+}
+
+.btn-secondary:focus {
+  box-shadow: 0 0 0 3px rgba(255, 132, 54, 0.25);
+}
+
+.btn-secondary:active {
+  background-color: var(--color-secondary-700);
+  border-color: var(--color-secondary-800);
+}
+
+.btn-outline-primary {
+  color: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+  background-color: transparent;
+}
+
+.btn-outline-primary:hover {
+  color: white;
+  background-color: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+}
+
+.btn-outline-secondary {
+  color: var(--color-secondary-500);
+  border-color: var(--color-secondary-500);
+  background-color: transparent;
+}
+
+.btn-outline-secondary:hover {
+  color: white;
+  background-color: var(--color-secondary-500);
+  border-color: var(--color-secondary-500);
+}
+
+.btn-text {
+  color: var(--color-primary-600);
+  background-color: transparent;
+  border-color: transparent;
+  padding-left: var(--spacing-2);
+  padding-right: var(--spacing-2);
+}
+
+.btn-text:hover {
+  color: var(--color-primary-700);
+  text-decoration: underline;
+  background-color: rgba(74, 126, 248, 0.05);
+}
+
+/* Button sizes */
+.btn-sm {
+  padding: var(--spacing-1) var(--spacing-3);
+  font-size: var(--font-size-xs);
+}
+
+.btn-lg {
+  padding: var(--spacing-3) var(--spacing-5);
+  font-size: var(--font-size-base);
+}
+
+/* Button states */
+.btn:disabled {
+  opacity: 0.65;
+  pointer-events: none;
+  cursor: default;
+}
+
+/* Button with icon */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon svg,
+.btn-icon img {
+  width: 1em;
+  height: 1em;
+}
+
+.btn-icon-left svg,
+.btn-icon-left img {
+  margin-right: var(--spacing-2);
+}
+
+.btn-icon-right svg,
+.btn-icon-right img {
+  margin-left: var(--spacing-2);
+}
+
+/* Icon-only buttons */
+.btn-icon-only {
+  padding: var(--spacing-2);
+  line-height: 1;
+  border-radius: var(--border-radius-md);
+}
+
+.btn-icon-only svg,
+.btn-icon-only img {
+  width: 1.25em;
+  height: 1.25em;
+}
+
+.btn-icon-only.btn-sm {
+  padding: var(--spacing-1);
+}
+
+.btn-icon-only.btn-lg {
+  padding: var(--spacing-3);
+}
+
+/* Button groups */
+.btn-group {
+  display: inline-flex;
+  position: relative;
+}
+
+.btn-group .btn {
+  position: relative;
+  flex: 1 1 auto;
+}
+
+.btn-group .btn:not(:first-child) {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: -1px;
+}
+
+.btn-group .btn:not(:last-child) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Action button variants */
+.btn-success {
+  color: white;
+  background-color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.btn-success:hover {
+  background-color: darken(var(--color-success), 10%);
+  border-color: darken(var(--color-success), 12.5%);
+}
+
+.btn-danger {
+  color: white;
+  background-color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.btn-danger:hover {
+  background-color: darken(var(--color-danger), 10%);
+  border-color: darken(var(--color-danger), 12.5%);
+}
+
+.btn-warning {
+  color: var(--color-neutral-900);
+  background-color: var(--color-warning);
+  border-color: var(--color-warning);
+}
+
+.btn-warning:hover {
+  background-color: darken(var(--color-warning), 10%);
+  border-color: darken(var(--color-warning), 12.5%);
+}
+
+.btn-info {
+  color: white;
+  background-color: var(--color-info);
+  border-color: var(--color-info);
+}
+
+.btn-info:hover {
+  background-color: darken(var(--color-info), 10%);
+  border-color: darken(var(--color-info), 12.5%);
+}
