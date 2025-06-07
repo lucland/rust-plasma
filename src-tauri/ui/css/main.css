@@ -1,0 +1,75 @@
+/**
+ * File: css/main.css
+ * Responsibility: Main CSS file that imports all design system and component styles
+ * 
+ * This file serves as the main entry point for all CSS in the application
+ */
+
+/* Design System - Core variables and foundations */
+@import 'design-system/variables.css';
+@import 'design-system/typography.css';
+@import 'design-system/layout.css';
+
+/* Components - Reusable UI elements */
+@import 'components/forms.css';
+@import 'components/buttons.css';
+
+/* Feature-specific styles */
+@import 'features/parameters.css';
+
+/* Reset and base styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-neutral-800);
+  background-color: var(--color-neutral-100);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Global utility classes */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-left { text-align: left; }
+
+.bg-white { background-color: white; }
+.bg-light { background-color: var(--color-neutral-50); }
+.bg-primary { background-color: var(--color-primary-500); }
+.bg-secondary { background-color: var(--color-secondary-500); }
+
+.text-primary { color: var(--color-primary-500); }
+.text-secondary { color: var(--color-secondary-500); }
+.text-muted { color: var(--color-neutral-600); }
+
+/* Accessibility focus styles */
+:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-neutral-100);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-neutral-400);
+}
