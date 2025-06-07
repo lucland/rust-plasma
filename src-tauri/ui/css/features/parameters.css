@@ -1,0 +1,248 @@
+/**
+ * File: css/features/parameters.css
+ * Responsibility: Styles for the parameter input panels
+ * 
+ * This file contains specific styles for parameter input sections:
+ * - Geometry parameters
+ * - Material properties
+ * - Torch configuration
+ * - Simulation settings
+ */
+
+/* Parameter Panel Container */
+.parameters-panel {
+  padding: var(--spacing-4);
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* Parameter Groups */
+.parameter-group {
+  margin-bottom: var(--spacing-6);
+}
+
+.parameter-group-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-700);
+  margin-bottom: var(--spacing-3);
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--color-primary-100);
+  display: flex;
+  align-items: center;
+}
+
+.parameter-group-icon {
+  margin-right: var(--spacing-2);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary-500);
+}
+
+/* Parameter Subgroups */
+.parameter-subgroup {
+  background-color: white;
+  border-radius: var(--border-radius-lg);
+  border: 1px solid var(--color-neutral-200);
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-3);
+}
+
+.parameter-subgroup-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-neutral-800);
+  margin-bottom: var(--spacing-3);
+}
+
+/* Parameter fields with units */
+.parameter-with-units {
+  display: flex;
+  align-items: center;
+}
+
+.parameter-unit {
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family-mono);
+  color: var(--color-neutral-600);
+  background-color: var(--color-neutral-100);
+  border: 1px solid var(--color-neutral-300);
+  border-left: none;
+  border-top-right-radius: var(--border-radius-md);
+  border-bottom-right-radius: var(--border-radius-md);
+  min-width: 45px;
+  text-align: center;
+}
+
+.parameter-with-units .form-input {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  flex-grow: 1;
+}
+
+/* Material properties grid */
+.material-properties-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--spacing-3);
+}
+
+/* Torch configuration */
+.torch-config {
+  position: relative;
+  border: 1px solid var(--color-neutral-300);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-3);
+  padding-top: var(--spacing-5);
+  margin-bottom: var(--spacing-4);
+  background-color: white;
+}
+
+.torch-config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: absolute;
+  top: -15px;
+  left: var(--spacing-3);
+  right: var(--spacing-3);
+}
+
+.torch-config-title {
+  background-color: var(--color-secondary-100);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--border-radius-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-secondary-700);
+  font-size: var(--font-size-sm);
+}
+
+.torch-config-actions {
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+/* Parameters info tooltip */
+.parameter-info {
+  position: relative;
+  display: inline-block;
+  margin-left: var(--spacing-1);
+  color: var(--color-neutral-500);
+  cursor: help;
+}
+
+.parameter-info:hover::after {
+  content: attr(data-info);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 100%;
+  margin-bottom: 5px;
+  background: var(--color-neutral-800);
+  color: white;
+  padding: var(--spacing-2);
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-xs);
+  width: max-content;
+  max-width: 250px;
+  z-index: var(--z-index-tooltip);
+}
+
+/* Phase change properties section */
+.phase-change-section {
+  background-color: var(--color-neutral-50);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-3);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .material-properties-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Compact mode for parameters to fit more on screen */
+.parameters-compact .form-group {
+  margin-bottom: var(--spacing-2);
+}
+
+.parameters-compact .parameter-subgroup {
+  padding: var(--spacing-2);
+}
+
+/* Toggle switches for enabling/disabling features */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 24px;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--color-neutral-300);
+  transition: .4s;
+  border-radius: 34px;
+}
+
+.switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .switch-slider {
+  background-color: var(--color-primary-500);
+}
+
+input:focus + .switch-slider {
+  box-shadow: 0 0 1px var(--color-primary-500);
+}
+
+input:checked + .switch-slider:before {
+  transform: translateX(16px);
+}
+
+.parameter-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-1) 0;
+}
+
+.parameter-toggle-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-neutral-700);
+}
+
+/* Parameter templates section */
+.parameter-templates {
+  margin-bottom: var(--spacing-4);
+}
+
+.template-select {
+  width: 100%;
+  margin-bottom: var(--spacing-3);
+}
