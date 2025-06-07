@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plasma Furnace Simulator - Parameters</title>
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header/Navigation -->
+        <header class="app-header">
+            <div class="d-flex justify-content-between align-items-center w-100">
+                <div class="d-flex align-items-center">
+                    <h1 class="text-lg font-semibold m-0">Plasma Furnace Simulator</h1>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary btn-sm" id="save-params">Save Parameters</button>
+                    <button class="btn btn-outline-primary btn-sm" id="load-params">Load Parameters</button>
+                    <button class="btn btn-primary btn-sm" id="run-simulation">Run Simulation</button>
+                </div>
+            </div>
+        </header>
+        
+        <div class="app-body">
+            <!-- Sidebar with parameter categories -->
+            <div class="app-sidebar">
+                <div class="p-3">
+                    <h2 class="text-base font-semibold mb-4">Parameter Categories</h2>
+                    <nav>
+                        <ul class="parameter-nav">
+                            <li><a href="#geometry" class="active">Furnace Geometry</a></li>
+                            <li><a href="#torches">Plasma Torches</a></li>
+                            <li><a href="#materials">Material Properties</a></li>
+                            <li><a href="#boundary">Boundary Conditions</a></li>
+                            <li><a href="#phenomena">Physical Phenomena</a></li>
+                            <li><a href="#simulation">Simulation Settings</a></li>
+                            <li><a href="#gasification">Gasification Parameters</a></li>
+                        </ul>
+                    </nav>
+                    
+                    <div class="parameter-templates mt-4">
+                        <h3 class="text-sm font-medium mb-2">Parameter Templates</h3>
+                        <select class="form-select template-select">
+                            <option value="">Select a template...</option>
+                            <option value="biomass">Biomass Gasification</option>
+                            <option value="waste">Waste Processing</option>
+                            <option value="metallurgy">Metallurgical Process</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Main content with parameter forms -->
+            <div class="app-content">
+                <div class="parameters-panel">
+                    <!-- Furnace Geometry -->
+                    <section id="geometry" class="parameter-group">
+                        <h2 class="parameter-group-title">
+                            <span class="parameter-group-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-width="2"/>
+                                    <path d="M12 2V22" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                            </span>
+                            Furnace Geometry
+                        </h2>
+                        
+                        <div class="parameter-subgroup">
+                            <h3 class="parameter-subgroup-title">Cylinder Dimensions</h3>
+                            
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Cylinder Height
+                                    <span class="parameter-info" data-info="The total height of the furnace cylinder. Valid range: 0.1m - 10m">?</span>
+                                </label>
+                                <div class="form-group-with-units">
+                                    <input type="number" class="form-input" id="cylinder-height" name="cylinder-height" min="0.1" max="10" step="0.1" value="2.0">
+                                    <span class="form-unit-addon">m</span>
+                                </div>
+                                <div class="form-help-text">Height of the cylindrical furnace (0.1 - 10m)</div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Cylinder Diameter
+                                    <span class="parameter-info" data-info="The diameter of the furnace cylinder. Valid range: 0.1m - 5m">?</span>
+                                </label>
+                                <div class="form-group-with-units">
+                                    <input type="number" class="form-input" id="cylinder-diameter" name="cylinder-diameter" min="0.1" max="5" step="0.1" value="1.0">
+                                    <span class="form-unit-addon">m</span>
+                                </div>
+                                <div class="form-help-text">Diameter of the cylindrical furnace (0.1 - 5m)</div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
