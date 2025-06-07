@@ -1,0 +1,137 @@
+|                          | Equivalence ratio (ER)                       | float           | –            | 0.1–2.0                                   |
+|                          | Steam‑to‑Feedstock ratio (S/F)               | float           | –            | 0–10                                      |
+
+> **Validation of inputs**  
+> • Out‑of‑range entries trigger inline error messages.  
+> • Logical checks (e.g. total mass flow vs. torch capacity) enforced before run.
+
+---
+
+## 2. Simulation Engine Calculations
+
+The core solves the transient heat equation in cylindrical coordinates \((r, θ, z)\), assuming azimuthal symmetry (∂/∂θ = 0):
+
+\[
+\rho\,c_p(T)\,\frac{\partial T}{\partial t}
+= \frac{1}{r}\,\frac{\partial}{\partial r}\!\Bigl(r\,k(T)\,\frac{\partial T}{\partial r}\Bigr)
++ \frac{\partial}{\partial z}\!\Bigl(k(T)\,\frac{\partial T}{\partial z}\Bigr)
++ Q_{\mathrm{rad}}(r,z,t)
++ Q_{\mathrm{conv}}(r,z,t)
++ Q_{\mathrm{phase}}(r,z,t)
+\]
+
+### 2.1 Spatial & Temporal Discretization
+
+- **Mesh**: Uniform grid with \(N_r\) radial and \(N_z\) axial nodes.  
+- **Time integration**: Implicit Crank–Nicolson (50 % implicit) for stability at larger time steps.  
+- **Linear solver**: Multi‑threaded banded matrix solve (e.g. Thomas algorithm extended to 2D).
+
+### 2.2 Conduction Term
+
+At node \((i,j)\):
+\[
+\begin{aligned}
+&\frac{1}{r_i}\frac{\partial}{\partial r}\Bigl(r\,k\,\partial_r T\Bigr)\approx
+\frac{1}{r_i\,\Delta r}\bigl[r_{i+\frac12}\,k_{i+\frac12}\,\delta_r^+T
+- r_{i-\frac12}\,k_{i-\frac12}\,\delta_r^-T\bigr],\\
+&\frac{\partial}{\partial z}\Bigl(k\,\partial_z T\Bigr)\approx
+\frac{k_{j+\frac12}\,\delta_z^+T - k_{j-\frac12}\,\delta_z^-T}{(\Delta z)^2},
+\end{aligned}
+\]
+where \(\delta_r^{\pm}T = T_{i\pm1,j}-T_{i,j}\), etc.
+
+### 2.3 Radiation Source
+
+Each grid cell exchanges radiative heat with torch(s):
+\[
+Q_{\mathrm{rad}} = \sum_{\text{torches}} \varepsilon\,\sigma\,F_{m\to c}\,\bigl(T_{\mathrm{torch}}^4 - T^4\bigr),
+\]
+- \(\sigma\): Stefan–Boltzmann constant  
+- \(F_{m\to c}\): view factor from torch to cell  
+- \(\varepsilon\): emissivity  
+
+### 2.4 Convection Source
+
+\[
+Q_{\mathrm{conv}} = h\,A_{\mathrm{cell}}\,\bigl(T_{\mathrm{gas}} - T\bigr).
+\]
+
+### 2.5 Phase Change (Enthalpy Method)
+
+Effective heat capacity near phase‑change temperature \(T_m\):
+\[
+c_p^{\mathrm{eff}}(T) = c_p + \frac{L}{\Delta T_{\mathrm{pc}}},
+\]
+where \(L\) is latent heat and \(\Delta T_{\mathrm{pc}}\) is small smoothing interval around \(T_m\).
+
+### 2.6 Multi‑Zone Logic
+
+Switch material/energy terms based on local \(T\):
+
+| Zone       | Temperature Range          | Special Terms            |
+|------------|----------------------------|--------------------------|
+| Drying     | \(T<100^\circ\mathrm{C}\)  | Moisture evaporation     |
+| Pyrolysis  | 100–400 °C                 | Char kinetics            |
+| Gasification | 400–1000 °C              | Syngas generation        |
+| Melting    | \(>1000^\circ\mathrm{C}\)  | Latent heat of fusion    |
+
+### 2.7 Boundary Conditions
+
+- **Axis** (\(r=0\)): symmetry → \(\partial_r T=0\).  
+- **Outer wall** (\(r=R\)): mixed convection + radiation.  
+- **Top/bottom** (\(z=0,H\)): user‑selectable (adiabatic or specified temperature).
+
+---
+
+## 3. Academic Compliance
+
+1. **Governing Equations**  
+   Based on standard heat‑transfer formulations (Incropera & DeWitt, *Fundamentals of Heat and Mass Transfer*).
+
+2. **Numerical Methods**  
+   - Finite difference in cylindrical coordinates, described in Patankar, *Numerical Heat Transfer and Fluid Flow*.  
+   - Crank–Nicolson time integration for second‑order accuracy and unconditional stability.
+
+3. **Material & Kinetic Data**  
+   - Uses peer‑reviewed property databases (e.g. NIST, JANAF) for \(k(T)\), \(c_p(T)\).  
+   - Arrhenius parameters aligned with literature on biomass pyrolysis kinetics (Yang et al., *Biomass & Bioenergy*, 2006).
+
+4. **Code Quality & Reproducibility**  
+   - All algorithms versioned and documented; open plugin API ensures transparency.  
+   - Unit and integration tests accompanied by references to analytical or benchmark problems.
+
+---
+
+## 4. Scientific Validation
+
+### 4.1 Analytical Benchmark
+
+- **Test case**: Solid cylinder heated suddenly at surface to \(T_s\).  
+- **Analytical solution**: series solution (Carslaw & Jaeger).  
+- **Validation**: run simulation, compute temperature profiles \(T(r,t)\), and calculate  
+  \[
+    \text{error}_{L^2} = \sqrt{\frac{\sum (T_{\text{num}}-T_{\text{analytical}})^2}{N_r\,N_t}} < 5\%.
+  \]
+
+### 4.2 Experimental Comparison
+
+- **Dataset**: Char pyrolysis temperatures vs. time from Smith et al., *Journal of Thermal Analysis*, 2018.  
+- **Procedure**: import CSV; overlay simulation and experimental curves; compute maximum deviation.
+
+### 4.3 Error Metrics
+
+| Metric         | Definition                                                |
+|----------------|-----------------------------------------------------------|
+| **L² norm**    | \(\sqrt{\sum (T_{\text{num}}-T_{\text{exp}})^2 / N}\)      |
+| **Max error**  | \(\max |T_{\text{num}}-T_{\text{exp}}|\)                   |
+| **RMS error**  | \(\sqrt{\sum (T_{\text{num}}-T_{\text{exp}})^2 / N}\)      |
+
+### 4.4 Validation Workflow
+
+1. **Import experimental CSV**  
+2. **Align time/temperature scales**  
+3. **Compute error metrics**  
+4. **Generate deviation plots** for each zone  
+5. **Produce summary report** (automated PDF or JSON)  
+
+---
