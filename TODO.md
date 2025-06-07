@@ -402,10 +402,10 @@ This roadmap organizes features into sprints, aiming for a runnable and testable
 **Goal:** Establish the foundational tools, repositories, and initial project structure to support efficient development and collaboration. (NFR5, NFR6)
 
 -   [x] **Setup & Configuration:** Initialize Git repository on a chosen platform (e.g., GitHub, GitLab). (See AI Prompt: [`PROMPTS.md#task-initialize-git-repository-on-a-chosen-platform-eg-github-gitlab`](./PROMPTS.md#task-initialize-git-repository-on-a-chosen-platform-eg-github-gitlab))
--   [ ] **Setup & Configuration:** Set up project structure (folders for `src`, `docs`, `tests`, `ui`, etc.). (See AI Prompt: [`PROMPTS.md#task-set-up-project-structure-folders-for-src-docs-tests-ui-etc`](./PROMPTS.md#task-set-up-project-structure-folders-for-src-docs-tests-ui-etc))
--   [ ] **Setup & Configuration:** Configure CI/CD pipeline basics (e.g., linting, basic build checks on push). (See AI Prompt: [`PROMPTS.md#task-configure-cicd-pipeline-basics-eg-linting-basic-build-checks-on-push`](./PROMPTS.md#task-configure-cicd-pipeline-basics-eg-linting-basic-build-checks-on-push))
--   [ ] **Documentation:** Initial project `README.md` with setup and build instructions. (See AI Prompt: [`PROMPTS.md#task-initial-project-readmemd-with-setup-and-build-instructions`](./PROMPTS.md#task-initial-project-readmemd-with-setup-and-build-instructions))
--   [ ] **Documentation:** Establish conventions for ongoing creation of supporting design documents (Use Cases, Sequence Diagrams, etc.) alongside feature development. (See AI Prompt: [`PROMPTS.md#task-establish-conventions-for-ongoing-creation-of-supporting-design-documents`](./PROMPTS.md#task-establish-conventions-for-ongoing-creation-of-supporting-design-documents))
+-   [x] **Setup & Configuration:** Set up project structure (folders for `src`, `docs`, `tests`, `ui`, etc.). (See AI Prompt: [`PROMPTS.md#task-set-up-project-structure-folders-for-src-docs-tests-ui-etc`](./PROMPTS.md#task-set-up-project-structure-folders-for-src-docs-tests-ui-etc))
+-   [x] **Setup & Configuration:** Configure CI/CD pipeline basics (e.g., linting, basic build checks on push). (See AI Prompt: [`PROMPTS.md#task-configure-cicd-pipeline-basics-eg-linting-basic-build-checks-on-push`](./PROMPTS.md#task-configure-cicd-pipeline-basics-eg-linting-basic-build-checks-on-push))
+-   [x] **Documentation:** Initial project `README.md` with setup and build instructions. (See AI Prompt: [`PROMPTS.md#task-initial-project-readmemd-with-setup-and-build-instructions`](./PROMPTS.md#task-initial-project-readmemd-with-setup-and-build-instructions))
+-   [x] **Documentation:** Establish conventions for ongoing creation of supporting design documents (Use Cases, Sequence Diagrams, etc.) alongside feature development. (See AI Prompt: [`PROMPTS.md#task-establish-conventions-for-ongoing-creation-of-supporting-design-documents`](./PROMPTS.md#task-establish-conventions-for-ongoing-creation-of-supporting-design-documents))
 
 ---
 ---
@@ -414,8 +414,8 @@ This roadmap organizes features into sprints, aiming for a runnable and testable
 **Goal:** Create the main application window and implement UI elements for defining the fundamental furnace geometry. (FR1.1, FR6.1, FR6.2, NFR1, NFR4)
 
 -   [x] **User Interface & Experience:** Implement main window structure, basic menu (File > Exit), and placeholder content areas using Tauri. (See AI Prompt: [`PROMPTS.md#task-user-interface--experience-implement-main-window-structure-basic-menu-file--exit-and-placeholder-content-areas-using-tauri`](./PROMPTS.md#task-user-interface--experience-implement-main-window-structure-basic-menu-file--exit-and-placeholder-content-areas-using-tauri))
--   [ ] **User Interface & Experience:** UI input fields for furnace cylinder height and diameter (FR1.1) with basic on-the-fly validation (FR1.10 - e.g., positive numbers only). (See AI Prompt: [`PROMPTS.md#task-user-interface--experience-ui-input-fields-for-furnace-cylinder-height-and-diameter-fr11-with-basic-on-the-fly-validation-fr110---eg-positive-numbers-only`](./PROMPTS.md#task-user-interface--experience-ui-input-fields-for-furnace-cylinder-height-and-diameter-fr11-with-basic-on-the-fly-validation-fr110---eg-positive-numbers-only))
--   [ ] **Core Simulation & Physics:** Backend stubs/data structures to receive and store furnace geometry from UI. (See AI Prompt: [`PROMPTS.md#task-core-simulation--physics-backend-stubsdata-structures-to-receive-and-store-furnace-geometry-from-ui`](./PROMPTS.md#task-core-simulation--physics-backend-stubsdata-structures-to-receive-and-store-furnace-geometry-from-ui))
+-   [x] **User Interface & Experience:** UI input fields for furnace cylinder height and diameter (FR1.1) with basic on-the-fly validation (FR1.10 - e.g., positive numbers only). (See AI Prompt: [`PROMPTS.md#task-user-interface--experience-ui-input-fields-for-furnace-cylinder-height-and-diameter-fr11-with-basic-on-the-fly-validation-fr110---eg-positive-numbers-only`](./PROMPTS.md#task-user-interface--experience-ui-input-fields-for-furnace-cylinder-height-and-diameter-fr11-with-basic-on-the-fly-validation-fr110---eg-positive-numbers-only))
+-   [x] **Core Simulation & Physics:** Backend stubs/data structures to receive and store furnace geometry from UI. (See AI Prompt: [`PROMPTS.md#task-core-simulation--physics-backend-stubsdata-structures-to-receive-and-store-furnace-geometry-from-ui`](./PROMPTS.md#task-core-simulation--physics-backend-stubsdata-structures-to-receive-and-store-furnace-geometry-from-ui))
 -   [ ] **QA Objective:** Launch the app. Input valid and invalid furnace dimensions. Verify UI updates, basic validation messages appear, and data is (conceptually) passed to backend (verifiable via logs/debug). App has a title bar and can be closed.
 
 ---
@@ -691,4 +691,6 @@ This roadmap organizes features into sprints, aiming for a runnable and testable
 -   [ ] **Documentation:** Consolidate and review core supporting documents (User Manual, Test Plan) for initial release.
 -   [ ] **QA Objective:** Create formula referencing another or sim variable; verify. Activate plugin; see its parameter listed (even if not editable yet). Review final documentation.
 
+    **Discovered During Work (2025-06-03):**
+    -   [ ] **BugFix:** Fix errors in `src/formula/engine.rs` and `src/simulation/parametric.rs`.
 ---
