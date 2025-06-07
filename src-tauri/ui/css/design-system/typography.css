@@ -1,0 +1,173 @@
+/**
+ * File: css/design-system/typography.css
+ * Responsibility: Define typography styles for the application
+ * 
+ * This file contains typography-related styles:
+ * - Heading styles (h1-h6)
+ * - Text styles (body, small, etc.)
+ * - Link styles
+ * - Text utilities (weight, alignment, etc.)
+ */
+
+/* Import Inter font */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Import JetBrains Mono for code/numerical values */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* Base Typography */
+body {
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-neutral-800);
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 0;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-neutral-900);
+}
+
+h1 {
+  font-size: var(--font-size-3xl);
+  margin-bottom: var(--spacing-6);
+}
+
+h2 {
+  font-size: var(--font-size-2xl);
+  margin-bottom: var(--spacing-5);
+}
+
+h3 {
+  font-size: var(--font-size-xl);
+  margin-bottom: var(--spacing-4);
+}
+
+h4 {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--spacing-3);
+}
+
+h5 {
+  font-size: var(--font-size-base);
+  margin-bottom: var(--spacing-2);
+}
+
+h6 {
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-2);
+}
+
+/* Paragraph */
+p {
+  margin-top: 0;
+  margin-bottom: var(--spacing-4);
+}
+
+/* Small text */
+small {
+  font-size: var(--font-size-sm);
+}
+
+/* Monospace - for data, code, measurements */
+.mono {
+  font-family: var(--font-family-mono);
+}
+
+/* Links */
+a {
+  color: var(--color-primary-600);
+  text-decoration: none;
+  transition: color var(--transition-fast) ease;
+}
+
+a:hover {
+  color: var(--color-primary-700);
+  text-decoration: underline;
+}
+
+/* Text utilities */
+.text-xs { font-size: var(--font-size-xs); }
+.text-sm { font-size: var(--font-size-sm); }
+.text-base { font-size: var(--font-size-base); }
+.text-lg { font-size: var(--font-size-lg); }
+.text-xl { font-size: var(--font-size-xl); }
+.text-2xl { font-size: var(--font-size-2xl); }
+.text-3xl { font-size: var(--font-size-3xl); }
+.text-4xl { font-size: var(--font-size-4xl); }
+
+.font-regular { font-weight: var(--font-weight-regular); }
+.font-medium { font-weight: var(--font-weight-medium); }
+.font-semibold { font-weight: var(--font-weight-semibold); }
+.font-bold { font-weight: var(--font-weight-bold); }
+
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+.leading-tight { line-height: var(--line-height-tight); }
+.leading-snug { line-height: var(--line-height-snug); }
+.leading-normal { line-height: var(--line-height-normal); }
+.leading-relaxed { line-height: var(--line-height-relaxed); }
+.leading-loose { line-height: var(--line-height-loose); }
+
+/* Text colors */
+.text-primary { color: var(--color-primary-500); }
+.text-secondary { color: var(--color-secondary-500); }
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-danger { color: var(--color-danger); }
+.text-info { color: var(--color-info); }
+
+.text-gray-50 { color: var(--color-neutral-50); }
+.text-gray-100 { color: var(--color-neutral-100); }
+.text-gray-200 { color: var(--color-neutral-200); }
+.text-gray-300 { color: var(--color-neutral-300); }
+.text-gray-400 { color: var(--color-neutral-400); }
+.text-gray-500 { color: var(--color-neutral-500); }
+.text-gray-600 { color: var(--color-neutral-600); }
+.text-gray-700 { color: var(--color-neutral-700); }
+.text-gray-800 { color: var(--color-neutral-800); }
+.text-gray-900 { color: var(--color-neutral-900); }
+
+/* Specific text roles */
+.label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-neutral-700);
+  margin-bottom: var(--spacing-1);
+  display: block;
+}
+
+.help-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-neutral-600);
+  margin-top: var(--spacing-1);
+}
+
+.data-value {
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-medium);
+}
+
+.section-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-700);
+  margin-bottom: var(--spacing-4);
+  padding-bottom: var(--spacing-2);
+  border-bottom: 1px solid var(--color-primary-100);
+}
+
+/* Scientific notation and units */
+.unit {
+  font-family: var(--font-family-mono);
+  color: var(--color-neutral-600);
+  font-size: 0.85em;
+}
+
+.scientific {
+  font-family: var(--font-family-mono);
+}
