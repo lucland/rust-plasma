@@ -5,7 +5,7 @@ use tauri::{AppHandle, Manager};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, PredefinedMenuItem, MenuEvent};
 
 // Import our lib functions
-use app_lib::run;
+use plasma_furnace_app::run;
 
 /**
  * main.rs

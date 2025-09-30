@@ -1,21 +1,29 @@
-/**
- * simulation.rs
- * Responsibility: Simulation functions for the Plasma Furnace Simulator
- * 
- * Main functions:
- * - Run simulation
- * - Get simulation status
- * - Get simulation results
- */
+//! Simulation control commands for Tauri application
+//! 
+//! This module provides Tauri commands for controlling simulations,
+//! integrating the core simulation library with the desktop UI.
+//! 
+//! # Commands
+//! 
+//! - `run_simulation` - Start a new simulation with given parameters
+//! - `get_simulation_status` - Check the status of a running simulation
+//! - `get_simulation_results` - Retrieve results from a completed simulation
 
-use log::info;
+use log::{info, error};
 use serde_json;
 use chrono;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use crate::parameters::SimulationParameters;
+use plasma_simulation::simulation::{SimulationEngine, SimulationConfig};
+
+/// Global simulation state (placeholder for future implementation)
+static SIMULATION_STATE: Mutex<Option<Arc<Mutex<SimulationEngine>>>> = Mutex::const_new(None);
 
 /// Run a simulation with the given parameters
 #[tauri::command]
-pub fn run_simulation(parameters: SimulationParameters) -> Result<serde_json::Value, String> {
+pub async fn run_simulation(parameters: SimulationParameters) -> Result<serde_json::Value, String> {
     // Create a unique ID for this simulation run
     let id = format!("sim_{}", chrono::Utc::now().timestamp());
     
@@ -26,13 +34,52 @@ pub fn run_simulation(parameters: SimulationParameters) -> Result<serde_json::Va
           parameters.geometry.cylinder_diameter);
     info!("Torches: {}, power: {}kW", parameters.torches.count, parameters.torches.power);
     
-    // In a real app, this would start an async job to run the simulation
-    // For now, just return a mock response
-    Ok(serde_json::json!({
-        "success": true,
-        "id": id,
-        "message": "Simulation started successfully"
-    }))
+    // Convert UI parameters to simulation configuration
+    let config = convert_parameters_to_config(parameters);
+    
+    // Create simulation engine
+    match SimulationEngine::new(config) {
+        Ok(mut engine) => {
+            info!("Created simulation engine successfully");
+            
+            // Run simulation (placeholder - will be async in future)
+            match engine.run() {
+                Ok(results) => {
+                    info!("Simulation completed successfully");
+                    Ok(serde_json::json!({
+                        "success": true,
+                        "id": id,
+                        "message": "Simulation completed successfully",
+                        "duration": results.duration
+                    }))
+                }
+                Err(e) => {
+                    error!("Simulation failed: {}", e);
+                    Err(format!("Simulation failed: {}", e))
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to create simulation engine: {}", e);
+            Err(format!("Failed to create simulation engine: {}", e))
+        }
+    }
+}
+
+/// Convert UI parameters to simulation configuration
+fn convert_parameters_to_config(parameters: SimulationParameters) -> SimulationConfig {
+    // For now, create a basic configuration
+    // This will be expanded in subsequent tasks
+    let mut config = SimulationConfig::default();
+    config.metadata.name = format!("Simulation_{}", chrono::Utc::now().format("%Y%m%d_%H%M%S"));
+    config.metadata.description = format!(
+        "Plasma furnace simulation - Height: {}m, Diameter: {}m, Torches: {}, Power: {}kW",
+        parameters.geometry.cylinder_height,
+        parameters.geometry.cylinder_diameter,
+        parameters.torches.count,
+        parameters.torches.power
+    );
+    config
 }
 
 /// Get the status of a running simulation

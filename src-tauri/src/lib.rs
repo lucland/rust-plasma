@@ -1,20 +1,25 @@
-/**
- * lib.rs
- * Responsibility: Core Tauri backend functionality for the Plasma Furnace Simulator
- * 
- * Main functions:
- * - Application initialization and setup
- * - Menu system creation and event handling
- * - Module organization and command registration
- * - State management and geometry processing
- */
+//! Tauri Desktop Application for Plasma Furnace Simulator
+//! 
+//! This module provides the desktop application interface using Tauri framework,
+//! integrating the core simulation library with a modern web-based UI.
+//! 
+//! # Core Responsibilities
+//! 
+//! - Application initialization and setup
+//! - Menu system creation and event handling
+//! - Tauri command registration and routing
+//! - State management and UI integration
+//! - Bridge between frontend and simulation library
 
 use std::sync::Arc;
 use log::info;
 use tauri::{AppHandle, Manager, Emitter};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, MenuEvent};
 
-// Import our modules
+// Import core simulation library
+use plasma_simulation::{init_logger as init_sim_logger, info as lib_info};
+
+// Import our Tauri-specific modules
 pub mod parameters;
 pub mod simulation;
 pub mod state;
@@ -29,7 +34,10 @@ pub use state::*;
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            // Setup logging in debug mode
+            // Initialize core simulation library logging
+            init_sim_logger();
+            
+            // Setup Tauri logging in debug mode
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -37,6 +45,11 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            
+            // Log library information
+            let lib_info = lib_info();
+            info!("Initializing {} v{}", lib_info.name, lib_info.version);
+            info!("{}", lib_info.description);
             
             // Initialize application state
             app.manage(Arc::new(AppState::new()));
