@@ -91,7 +91,7 @@ const PlasmaApp = (function() {
                 startSimBtn.disabled = true;
                 pauseSimBtn.disabled = false;
                 stopSimBtn.disabled = false;
-                await runSimulation();
+                await startSimulation();
             });
         }
         
@@ -150,6 +150,47 @@ const PlasmaApp = (function() {
     };
     
     /**
+     * Start the simulation with current parameters
+     */
+    const startSimulation = async () => {
+        try {
+            PlasmaUtils.Status.update('Starting simulation...', 'info');
+            
+            // Get current parameters from the parameters module
+            let parameters = {};
+            if (PlasmaParameters) {
+                parameters = PlasmaParameters.getParameters();
+            }
+            
+            // Show simulation controls
+            const simControls = PlasmaUtils.DOM.getById('simulation-controls');
+            if (simControls) {
+                simControls.classList.remove('d-none');
+            }
+            
+            // Call the start simulation API
+            const result = await PlasmaAPI.startSimulation(parameters);
+            
+            if (result && result.success) {
+                PlasmaUtils.Status.update('Simulation running...', 'success');
+                
+                // Set up interval to check simulation status
+                let simulationId = result.simulationId;
+                checkSimulationProgress(simulationId);
+                
+                return simulationId;
+            } else {
+                PlasmaUtils.Status.update('Failed to start simulation', 'error');
+                return null;
+            }
+        } catch (error) {
+            console.error('Error starting simulation:', error);
+            PlasmaUtils.Status.update('Error starting simulation', 'error');
+            return null;
+        }
+    };
+
+    /**
      * Run the simulation with current parameters
      */
     const runSimulation = async () => {
@@ -202,16 +243,20 @@ const PlasmaApp = (function() {
             
             if (status.complete) {
                 PlasmaUtils.Status.update('Simulation complete', 'success');
-                const results = await PlasmaAPI.getSimulationResults(simId);
                 
-                // Update visualization if available
-                if (PlasmaVisualization && results) {
-                    PlasmaVisualization.update(results);
-                    
-                    // Switch to visualization tab to show results
-                    const visualizationLink = PlasmaUtils.DOM.get('[data-tab="visualization"]');
-                    if (visualizationLink) {
-                        visualizationLink.click();
+                // Load and display visualization data
+                if (PlasmaVisualization) {
+                    try {
+                        await PlasmaVisualization.loadVisualizationData(simId);
+                        
+                        // Switch to visualization tab to show results
+                        const visualizationLink = PlasmaUtils.DOM.get('[data-tab="visualization"]');
+                        if (visualizationLink) {
+                            visualizationLink.click();
+                        }
+                    } catch (error) {
+                        console.error('Failed to load visualization data:', error);
+                        PlasmaUtils.Status.update('Simulation complete, but visualization failed to load', 'warning');
                     }
                 }
                 
@@ -247,8 +292,23 @@ const PlasmaApp = (function() {
      * Stop the current simulation
      */
     const stopSimulation = async () => {
-        // Implementation would depend on having a current simulation ID stored
-        PlasmaUtils.Status.update('Simulation stopped', 'warning');
+        try {
+            // In a real implementation, we'd store the current simulation ID
+            // For now, use a placeholder ID
+            const simulationId = 'current_sim';
+            
+            const result = await PlasmaAPI.stopSimulation(simulationId);
+            
+            if (result && result.success) {
+                PlasmaUtils.Status.update('Simulation stopped', 'warning');
+            } else {
+                PlasmaUtils.Status.update('Failed to stop simulation', 'error');
+            }
+        } catch (error) {
+            console.error('Error stopping simulation:', error);
+            PlasmaUtils.Status.update('Error stopping simulation', 'error');
+        }
+        
         resetSimulationControls();
     };
     
@@ -323,7 +383,9 @@ const PlasmaApp = (function() {
         init,
         saveCurrentParameters,
         restoreParameters,
-        runSimulation
+        runSimulation,
+        startSimulation,
+        stopSimulation
     };
 })();
 

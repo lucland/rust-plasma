@@ -17,26 +17,27 @@ use tauri::{AppHandle, Manager, Emitter};
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, MenuEvent};
 
 // Import core simulation library
-use plasma_simulation::{init_logger as init_sim_logger, info as lib_info};
+use plasma_simulation::{info as lib_info};
 
 // Import our Tauri-specific modules
 pub mod parameters;
 pub mod simulation;
 pub mod state;
+pub mod project;
+pub mod formula;
 
 // Re-export the types we'll need in main.rs
 pub use parameters::*;
 pub use simulation::*;
 pub use state::*;
+pub use project::*;
+pub use formula::*;
 
 /// Main entry point for the application
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            // Initialize core simulation library logging
-            init_sim_logger();
-            
             // Setup Tauri logging in debug mode
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -54,6 +55,20 @@ pub fn run() {
             // Initialize application state
             app.manage(Arc::new(AppState::new()));
             info!("Application state initialized");
+            
+            // Initialize project manager
+            let app_data_dir = app.path().app_data_dir()
+                .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+            let project_manager = Arc::new(ProjectManager::new(app_data_dir));
+            project_manager.initialize()
+                .map_err(|e| format!("Failed to initialize project manager: {}", e))?;
+            app.manage(project_manager);
+            info!("Project manager initialized");
+            
+            // Initialize formula manager
+            let formula_manager = init_formula_manager();
+            app.manage(formula_manager);
+            info!("Formula manager initialized");
             
             // Setup menu system
             let app_handle = app.handle();
@@ -157,10 +172,37 @@ pub fn run() {
             parameters::save_parameters,
             parameters::load_parameter_template,
             simulation::run_simulation,
+            simulation::start_simulation,
+            simulation::stop_simulation,
             simulation::get_simulation_status,
+            simulation::get_progress,
             simulation::get_simulation_results,
+            simulation::get_visualization_data,
+            simulation::get_time_step_data,
+            simulation::get_playback_info,
             state::update_geometry,
-            state::get_debug_state
+            state::get_debug_state,
+            project::create_new_project,
+            project::save_project,
+            project::load_project,
+            project::get_current_project,
+            project::update_project_parameters,
+            project::get_recent_files,
+            project::get_project_templates,
+            project::create_project_from_template,
+            project::update_project_metadata,
+            formula::validate_formula,
+            formula::evaluate_formula,
+            formula::add_material_formula,
+            formula::add_physics_formula,
+            formula::get_material_formulas,
+            formula::get_physics_formulas,
+            formula::remove_material_formula,
+            formula::remove_physics_formula,
+            formula::add_constant,
+            formula::remove_constant,
+            formula::get_formula_reference,
+            formula::validate_all_formulas
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

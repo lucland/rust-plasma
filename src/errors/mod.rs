@@ -3,7 +3,7 @@
 //! This module provides comprehensive error types and handling for all components
 //! of the simulation system, following Rust best practices with thiserror.
 
-use std::fmt;
+
 
 /// Main error type for the simulation system
 #[derive(Debug, thiserror::Error)]
@@ -90,7 +90,7 @@ where
 {
     fn with_context(self, context: ErrorContext) -> Result<T> {
         self.map_err(|e| {
-            let mut error = e.into();
+            let error = e.into();
             // Add context information to error message if possible
             log::error!("Error in {}.{}: {}", context.component, context.operation, error);
             error
@@ -161,7 +161,6 @@ pub mod validation {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::validation::*;
     
     #[test]

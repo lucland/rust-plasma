@@ -1,165 +1,1002 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plasma Furnace Simulator</title>
     <link rel="stylesheet" href="css/main.css">
+    <!-- Three.js for 3D visualization -->
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 </head>
+
 <body>
     <div class="app-container">
         <header class="app-header">
             <div class="d-flex justify-content-between align-items-center w-100">
-                <h1 class="text-lg font-semibold m-0">Plasma Furnace Simulator</h1>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-outline-primary btn-sm" id="save-project">Save Project</button>
-                    <button class="btn btn-outline-primary btn-sm" id="load-project">Load Project</button>
-                    <button class="btn btn-primary btn-sm" id="run-simulation">Run Simulation</button>
+                <div class="d-flex align-items-center gap-3">
+                    <h1 class="text-lg font-semibold m-0">Plasma Furnace Simulator</h1>
+                    <div id="project-info" class="text-sm text-muted" title="Click to edit project settings"></div>
+                    <!-- Project info will be populated by JavaScript -->
                 </div>
             </div>
-        </header>
-        
-        <div class="app-body">
-            <aside class="app-sidebar">
-                <div class="p-3">
-                    <h2 class="section-title">Navigation</h2>
-                    <nav class="sidebar-nav">
-                        <ul>
-                            <li><a href="#" class="nav-link active" data-tab="visualization">Visualization</a></li>
-                            <li><a href="#" class="nav-link" data-tab="parameters">Parameters</a></li>
-                            <li><a href="#" class="nav-link" data-tab="analysis">Analysis</a></li>
-                            <li><a href="#" class="nav-link" data-tab="export">Export</a></li>
-                        </ul>
-                    </nav>
-                    
-                    <div class="parameter-templates mt-4" id="parameter-templates">
-                        <h3 class="text-sm font-medium mb-2">Parameter Templates</h3>
-                        <select class="form-select template-select">
-                            <option value="">Select a template...</option>
-                            <option value="biomass">Biomass Gasification</option>
-                            <option value="waste">Waste Processing</option>
-                            <option value="metallurgy">Metallurgical Process</option>
-                        </select>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" id="new-project">New</button>
+                <button class="btn btn-outline-primary btn-sm" id="save-project">Save</button>
+                <button class="btn btn-outline-primary btn-sm" id="load-project">Load</button>
+                <button class="btn btn-primary btn-sm" id="run-simulation">Run Simulation</button>
+            </div>
+    </div>
+    </header>
+
+    <div class="app-body">
+        <aside class="app-sidebar">
+            <div class="p-3">
+                <h2 class="section-title">Navigation</h2>
+                <nav class="sidebar-nav">
+                    <ul>
+                        <li><a href="#" class="nav-link active" data-tab="visualization">Visualization</a></li>
+                        <li><a href="#" class="nav-link" data-tab="parameters">Parameters</a></li>
+                        <li><a href="#" class="nav-link" data-tab="formulas">Formulas</a></li>
+                        <li><a href="#" class="nav-link" data-tab="analysis">Analysis</a></li>
+                        <li><a href="#" class="nav-link" data-tab="export">Export</a></li>
+                    </ul>
+                </nav>
+
+                <div class="parameter-templates mt-4" id="parameter-templates">
+                    <h3 class="text-sm font-medium mb-2">Project Templates</h3>
+                    <select class="form-select template-select">
+                        <option value="">Select a template...</option>
+                        <!-- Templates will be populated by JavaScript -->
+                    </select>
+                    <div class="mt-2">
+                        <small class="text-muted">Create a new project from predefined templates</small>
                     </div>
-                    
-                    <div id="simulation-controls" class="mt-4 d-none">
-                        <h3 class="text-sm font-medium mb-2">Simulation Controls</h3>
-                        <div class="d-flex flex-column gap-2">
-                            <button class="btn btn-sm btn-primary" id="start-sim">Start</button>
-                            <button class="btn btn-sm btn-secondary" id="pause-sim" disabled>Pause</button>
-                            <button class="btn btn-sm btn-outline-danger" id="stop-sim" disabled>Stop</button>
+                </div>
+
+                <div class="recent-projects mt-4" id="recent-projects">
+                    <h3 class="text-sm font-medium mb-2">Recent Projects</h3>
+                    <div id="recent-files-list" class="recent-files-list">
+                        <!-- Recent files will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <div id="simulation-controls" class="mt-4 d-none">
+                    <h3 class="text-sm font-medium mb-2">Simulation Controls</h3>
+                    <div class="d-flex flex-column gap-2">
+                        <button class="btn btn-sm btn-primary" id="start-sim">Start</button>
+                        <button class="btn btn-sm btn-secondary" id="pause-sim" disabled>Pause</button>
+                        <button class="btn btn-sm btn-outline-danger" id="stop-sim" disabled>Stop</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <main class="app-content">
+            <!-- Tab content containers -->
+            <div class="tab-content visualization-tab" id="visualization-tab"></div>
+            <div class="p-4">
+                <h2 class="section-title">Visualization</h2>
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h3 class="card-title">3D Temperature Visualization</h3>
+                        <div class="visualization-controls">
+                            <button class="btn btn-sm btn-outline-primary" id="test-visualization">Test
+                                Visualization</button>
+                            <button class="btn btn-sm btn-outline-primary" id="reset-camera">Reset View</button>
+                            <button class="btn btn-sm btn-outline-primary" id="toggle-wireframe">Wireframe</button>
+                        </div>
+                    </div>
+
+                    <!-- Playback Controls -->
+                    <div class="playback-controls p-3 border-bottom" id="playback-controls" style="display: none;">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="playback-buttons">
+                                <button class="btn btn-sm btn-outline-primary" id="play-pause-btn" title="Play/Pause">
+                                    <span id="play-pause-icon">▶️</span>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" id="step-backward-btn"
+                                    title="Step Backward">⏮️</button>
+                                <button class="btn btn-sm btn-outline-secondary" id="step-forward-btn"
+                                    title="Step Forward">⏭️</button>
+                                <button class="btn btn-sm btn-outline-secondary" id="reset-playback-btn"
+                                    title="Reset to Start">⏪</button>
+                            </div>
+
+                            <div class="playback-slider flex-grow-1">
+                                <input type="range" class="form-range" id="time-slider" min="0" max="100" value="0"
+                                    step="1">
+                                <div class="d-flex justify-content-between text-sm text-muted mt-1">
+                                    <span id="current-time">0.0s</span>
+                                    <span id="total-time">60.0s</span>
+                                </div>
+                            </div>
+
+                            <div class="playback-settings">
+                                <label class="form-label text-sm mb-1">Speed:</label>
+                                <select class="form-select form-select-sm" id="playback-speed" style="width: auto;">
+                                    <option value="0.25">0.25x</option>
+                                    <option value="0.5">0.5x</option>
+                                    <option value="1" selected>1x</option>
+                                    <option value="2">2x</option>
+                                    <option value="4">4x</option>
+                                </select>
+
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="smooth-interpolation" checked>
+                                    <label class="form-check-label text-xs" for="smooth-interpolation">
+                                        Smooth
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="playback-info text-sm text-muted">
+                                <div>Step: <span id="current-step">0</span>/<span id="total-steps">0</span></div>
+                                <div>Temp: <span id="temp-range">300-1000K</span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body p-0" style="position: relative;"></div>
+                    <div id="visualization-container" style="width: 100%; height: 100%; position: relative;">
+                        <canvas id="visualization-canvas" style="width: 100%; height: 100%; display: block;"></canvas>
+                        <div id="visualization-placeholder" class="d-flex align-items-center justify-content-center"
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(248, 249, 250, 0.9);">
+                            <div class="text-center">
+                                <p class="text-muted mb-2">🔥 3D Heat Visualization</p>
+                                <p class="text-muted small">Run a simulation to see temperature distribution</p>
+                            </div>
+                        </div>
+                        <div id="visualization-loading" class="d-none d-flex align-items-center justify-content-center"
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9);">
+                            <div class="text-center">
+                                <div class="spinner-border text-primary mb-2" role="status"></div>
+                                <p class="text-muted small">Loading visualization...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="temperature-legend" class="position-absolute"
+                        style="top: 10px; right: 10px; background: rgba(255, 255, 255, 0.9); padding: 10px; border-radius: 4px; font-size: 12px; display: none;">
+                        <div class="mb-2"><strong>Temperature (K)</strong></div>
+                        <div id="legend-gradient"
+                            style="width: 20px; height: 100px; background: linear-gradient(to top, blue, cyan, green, yellow, red); border: 1px solid #ccc;">
+                        </div>
+                        <div class="mt-1">
+                            <div id="legend-max">800</div>
+                            <div id="legend-min" style="margin-top: 80px;">300</div>
                         </div>
                     </div>
                 </div>
-            </aside>
+            </div>
+    </div>
+    </div>
+
+    <div class="tab-content d-none" id="parameters-tab">
+        <div class="parameters-panel">
+            <!-- Parameter Categories Navigation -->
+            <div id="parameter-categories" class="d-flex mb-4">
+                <div class="tabs">
+                    <div class="tab active" data-param-group="geometry">Furnace Geometry</div>
+                    <div class="tab" data-param-group="mesh">Mesh Settings</div>
+                    <div class="tab" data-param-group="torches">Plasma Torches</div>
+                    <div class="tab" data-param-group="materials">Material Properties</div>
+                    <div class="tab" data-param-group="boundary">Boundary Conditions</div>
+                    <div class="tab" data-param-group="simulation">Simulation Settings</div>
+                </div>
+            </div>
+
+            <div id="parameter-content">
+                <!-- Furnace Geometry -->
+                <section id="geometry" class="parameter-group">
+                    <h2 class="parameter-group-title">
+                        <span class="parameter-group-icon">🏭</span>
+                        Furnace Geometry
+                    </h2>
+
+                    <div class="parameter-subgroup">
+                        <h3 class="parameter-subgroup-title">Cylinder Dimensions</h3>
+                        <div class="form-group">
+                            <label class="form-label">
+                                Cylinder Height
+                                <span class="parameter-info"
+                                    data-info="The total height of the furnace cylinder. Valid range: 1.0m - 10.0m">?</span>
+                            </label>
+                            <div class="form-group-with-units">
+                                <input type="number" class="form-input" id="cylinder-height" name="cylinder-height"
+                                    min="1.0" max="10.0" step="0.1" value="2.0" required>
+                                <span class="form-unit-addon">m</span>
+                            </div>
+                            <div class="form-help-text">Height of the cylindrical furnace (1.0 - 10.0m)</div>
+                            <div class="invalid-feedback">Height must be between 1.0 and 10.0 meters</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                Cylinder Radius
+                                <span class="parameter-info"
+                                    data-info="The radius of the furnace cylinder. Valid range: 0.5m - 5.0m">?</span>
+                            </label>
+                            <div class="form-group-with-units">
+                                <input type="number" class="form-input" id="cylinder-radius" name="cylinder-radius"
+                                    min="0.5" max="5.0" step="0.1" value="0.5" required>
+                                <span class="form-unit-addon">m</span>
+                            </div>
+                            <div class="form-help-text">Radius of the cylindrical furnace (0.5 - 5.0m)</div>
+                            <div class="invalid-feedback">Radius must be between 0.5 and 5.0 meters</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Mesh Settings -->
+                <section id="mesh" class="parameter-group d-none">
+                    <h2 class="parameter-group-title">
+                        <span class="parameter-group-icon">🔲</span>
+                        Mesh Settings
+                    </h2>
+
+                    <div class="parameter-subgroup">
+                        <h3 class="parameter-subgroup-title">Mesh Resolution</h3>
+                        <div class="form-group">
+                            <label class="form-label">
+                                Mesh Preset
+                                <span class="parameter-info"
+                                    data-info="Choose a predefined mesh resolution for performance vs accuracy trade-off">?</span>
+                            </label>
+                            <select class="form-select" id="mesh-preset" name="mesh-preset">
+                                <option value="fast">Fast (50×50) - Quick simulation, lower accuracy</option>
+                                <option value="balanced" selected>Balanced (100×100) - Good balance of speed and
+                                    accuracy</option>
+                                <option value="high">High (200×200) - High accuracy, slower simulation</option>
+                                <option value="custom">Custom - Define your own resolution</option>
+                            </select>
+                            <div class="form-help-text">Select mesh resolution based on your performance vs accuracy
+                                needs</div>
+                        </div>
+
+                        <div id="custom-mesh-settings" class="d-none">
+                            <div class="form-group-row">
+                                <div class="form-group-col">
+                                    <label class="form-label">
+                                        Radial Nodes (Nr)
+                                        <span class="parameter-info"
+                                            data-info="Number of mesh nodes in radial direction. Range: 10-500">?</span>
+                                    </label>
+                                    <input type="number" class="form-input" id="mesh-nr" name="mesh-nr" min="10"
+                                        max="500" step="1" value="100">
+                                    <div class="invalid-feedback">Radial nodes must be between 10 and 500</div>
+                                </div>
+                                <div class="form-group-col">
+                                    <label class="form-label">
+                                        Axial Nodes (Nz)
+                                        <span class="parameter-info"
+                                            data-info="Number of mesh nodes in axial direction. Range: 10-500">?</span>
+                                    </label>
+                                    <input type="number" class="form-input" id="mesh-nz" name="mesh-nz" min="10"
+                                        max="500" step="1" value="100">
+                                    <div class="invalid-feedback">Axial nodes must be between 10 and 500</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mesh-info mt-3 p-3 bg-light rounded">
+                            <h4 class="text-sm font-medium mb-2">Mesh Information</h4>
+                            <div class="mesh-stats">
+                                <div>Total Nodes: <span id="total-nodes">10,000</span></div>
+                                <div>Estimated Memory: <span id="estimated-memory">~80 MB</span></div>
+                                <div>Expected Performance: <span id="expected-performance">~2 minutes</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Plasma Torches -->
+                <section id="torches" class="parameter-group d-none">
+                    <h2 class="parameter-group-title">
+                        <span class="parameter-group-icon">🔥</span>
+                        Plasma Torches
+                    </h2>
+
+                    <div class="parameter-subgroup">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h3 class="parameter-subgroup-title">Torch Configuration</h3>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="add-torch">Add
+                                Torch</button>
+                        </div>
+
+                        <div id="torch-list">
+                            <!-- Torch configurations will be added here dynamically -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Material Properties -->
+                <section id="materials" class="parameter-group d-none">
+                    <h2 class="parameter-group-title">
+                        <span class="parameter-group-icon">🧱</span>
+                        Material Properties
+                    </h2>
+
+                    <div class="parameter-subgroup">
+                        <h3 class="parameter-subgroup-title">Material Selection</h3>
+                        <div class="form-group">
+                            <label class="form-label">
+                                Material Type
+                                <span class="parameter-info"
+                                    data-info="Select the primary material for the furnace simulation">?</span>
+                            </label>
+                            <select class="form-select" id="material-type" name="material-type">
+                                <option value="carbon-steel">Carbon Steel</option>
+                                <option value="stainless-steel">Stainless Steel</option>
+                                <option value="aluminum">Aluminum</option>
+                                <option value="copper">Copper</option>
+                                <option value="iron">Iron</option>
+                                <option value="graphite">Graphite</option>
+                                <option value="concrete">Concrete</option>
+                                <option value="glass">Glass</option>
+                                <option value="wood">Wood</option>
+                                <option value="ceramic">Ceramic</option>
+                                <option value="custom">Custom Material</option>
+                            </select>
+                        </div>
+
+                        <div class="material-properties-display mt-3 p-3 bg-light rounded">
+                            <h4 class="text-sm font-medium mb-3">Material Properties</h4>
+                            <div class="material-properties-grid">
+                                <div class="property-item">
+                                    <label class="form-label">Density (ρ)</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="material-density" min="100"
+                                            max="20000" step="1" value="7850" readonly>
+                                        <span class="form-unit-addon">kg/m³</span>
+                                    </div>
+                                </div>
+                                <div class="property-item">
+                                    <label class="form-label">Thermal Conductivity (k)</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="material-conductivity" min="0.1"
+                                            max="500" step="0.1" value="50.0" readonly>
+                                        <span class="form-unit-addon">W/(m·K)</span>
+                                    </div>
+                                </div>
+                                <div class="property-item">
+                                    <label class="form-label">Specific Heat (cp)</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="material-specific-heat" min="100"
+                                            max="5000" step="1" value="460" readonly>
+                                        <span class="form-unit-addon">J/(kg·K)</span>
+                                    </div>
+                                </div>
+                                <div class="property-item">
+                                    <label class="form-label">Emissivity (ε)</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="material-emissivity" min="0.01"
+                                            max="1.0" step="0.01" value="0.8" readonly>
+                                        <span class="form-unit-addon">-</span>
+                                    </div>
+                                </div>
+                                <div class="property-item">
+                                    <label class="form-label">Melting Point</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="material-melting-point" min="273"
+                                            max="4000" step="1" value="1811" readonly>
+                                        <span class="form-unit-addon">K</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="custom-material-properties" class="d-none mt-3">
+                            <h4 class="text-sm font-medium mb-3">Custom Material Properties</h4>
+                            <div class="material-properties-grid">
+                                <div class="property-item">
+                                    <label class="form-label">Density (ρ)</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="custom-density" min="100"
+                                            max="20000" step="1" value="7850">
+                                        <span class="form-unit-addon">kg/m³</span>
+                                    </div>
+                                </div>
+                                <div class="property-item">
+                                    <label class="form-label">Thermal Conductivity (k)</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="custom-conductivity" min="0.1"
+                                            max="500" step="0.1" value="50.0">
+                                        <span class="form-unit-addon">W/(m·K)</span>
+                                    </div>
+                                </div>
+                                <div class="property-item">
+                                    <label class="form-label">Specific Heat (cp)</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="custom-specific-heat" min="100"
+                                            max="5000" step="1" value="460">
+                                        <span class="form-unit-addon">J/(kg·K)</span>
+                                    </div>
+                                </div>
+                                <div class="property-item">
+                                    <label class="form-label">Emissivity (ε)</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="custom-emissivity" min="0.01"
+                                            max="1.0" step="0.01" value="0.8">
+                                        <span class="form-unit-addon">-</span>
+                                    </div>
+                                </div>
+                                <div class="property-item">
+                                    <label class="form-label">Melting Point</label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="custom-melting-point" min="273"
+                                            max="4000" step="1" value="1811">
+                                        <span class="form-unit-addon">K</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Boundary Conditions -->
+                <section id="boundary" class="parameter-group d-none">
+                    <h2 class="parameter-group-title">
+                        <span class="parameter-group-icon">🌡️</span>
+                        Boundary Conditions
+                    </h2>
+
+                    <div class="parameter-subgroup">
+                        <h3 class="parameter-subgroup-title">Temperature Conditions</h3>
+                        <div class="form-group-row">
+                            <div class="form-group-col">
+                                <label class="form-label">
+                                    Initial Temperature
+                                    <span class="parameter-info"
+                                        data-info="Initial temperature of the furnace material. Range: 273-1273K">?</span>
+                                </label>
+                                <div class="form-group-with-units">
+                                    <input type="number" class="form-input" id="initial-temperature" min="273"
+                                        max="1273" step="1" value="298" required>
+                                    <span class="form-unit-addon">K</span>
+                                </div>
+                                <div class="invalid-feedback">Temperature must be between 273K and 1273K</div>
+                            </div>
+                            <div class="form-group-col">
+                                <label class="form-label">
+                                    Ambient Temperature
+                                    <span class="parameter-info"
+                                        data-info="Ambient temperature around the furnace. Range: 273-373K">?</span>
+                                </label>
+                                <div class="form-group-with-units">
+                                    <input type="number" class="form-input" id="ambient-temperature" min="273" max="373"
+                                        step="1" value="298" required>
+                                    <span class="form-unit-addon">K</span>
+                                </div>
+                                <div class="invalid-feedback">Ambient temperature must be between 273K and 373K</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="parameter-subgroup">
+                        <h3 class="parameter-subgroup-title">Wall Conditions</h3>
+                        <div class="form-group">
+                            <label class="form-label">
+                                Wall Boundary Type
+                                <span class="parameter-info"
+                                    data-info="Type of boundary condition at the furnace walls">?</span>
+                            </label>
+                            <select class="form-select" id="wall-boundary-type">
+                                <option value="mixed">Mixed (Convection + Radiation)</option>
+                                <option value="adiabatic">Adiabatic (No heat loss)</option>
+                                <option value="fixed-temperature">Fixed Temperature</option>
+                            </select>
+                        </div>
+
+                        <div id="convection-settings">
+                            <div class="form-group-row">
+                                <div class="form-group-col">
+                                    <label class="form-label">
+                                        Convection Coefficient (h)
+                                        <span class="parameter-info"
+                                            data-info="Heat transfer coefficient for convection. Range: 1-100 W/(m²·K)">?</span>
+                                    </label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="convection-coefficient" min="1"
+                                            max="100" step="0.1" value="10.0">
+                                        <span class="form-unit-addon">W/(m²·K)</span>
+                                    </div>
+                                </div>
+                                <div class="form-group-col">
+                                    <label class="form-label">
+                                        Surface Emissivity
+                                        <span class="parameter-info"
+                                            data-info="Surface emissivity for radiation. Range: 0.1-1.0">?</span>
+                                    </label>
+                                    <div class="form-group-with-units">
+                                        <input type="number" class="form-input" id="surface-emissivity" min="0.1"
+                                            max="1.0" step="0.01" value="0.8">
+                                        <span class="form-unit-addon">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Simulation Settings -->
+                <section id="simulation" class="parameter-group d-none">
+                    <h2 class="parameter-group-title">
+                        <span class="parameter-group-icon">⚙️</span>
+                        Simulation Settings
+                    </h2>
+
+                    <div class="parameter-subgroup">
+                        <h3 class="parameter-subgroup-title">Time Settings</h3>
+                        <div class="form-group-row">
+                            <div class="form-group-col">
+                                <label class="form-label">
+                                    Total Time
+                                    <span class="parameter-info"
+                                        data-info="Total simulation time. Range: 1-3600 seconds">?</span>
+                                </label>
+                                <div class="form-group-with-units">
+                                    <input type="number" class="form-input" id="total-time" min="1" max="3600" step="1"
+                                        value="60" required>
+                                    <span class="form-unit-addon">s</span>
+                                </div>
+                                <div class="invalid-feedback">Total time must be between 1 and 3600 seconds</div>
+                            </div>
+                            <div class="form-group-col">
+                                <label class="form-label">
+                                    Output Interval
+                                    <span class="parameter-info"
+                                        data-info="Time interval for saving results. Range: 0.1-60 seconds">?</span>
+                                </label>
+                                <div class="form-group-with-units">
+                                    <input type="number" class="form-input" id="output-interval" min="0.1" max="60"
+                                        step="0.1" value="1.0" required>
+                                    <span class="form-unit-addon">s</span>
+                                </div>
+                                <div class="invalid-feedback">Output interval must be between 0.1 and 60 seconds</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="parameter-subgroup">
+                        <h3 class="parameter-subgroup-title">Solver Settings</h3>
+                        <div class="form-group">
+                            <label class="form-label">
+                                Numerical Method
+                                <span class="parameter-info"
+                                    data-info="Choose the numerical method for solving the heat equation">?</span>
+                            </label>
+                            <select class="form-select" id="solver-method">
+                                <option value="forward-euler">Forward Euler (Fast, Explicit)</option>
+                                <option value="crank-nicolson">Crank-Nicolson (Accurate, Implicit)</option>
+                            </select>
+                            <div class="form-help-text">Forward Euler is faster but requires smaller time steps for
+                                stability</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">
+                                CFL Safety Factor
+                                <span class="parameter-info"
+                                    data-info="Safety factor for automatic time step control. Range: 0.1-0.9">?</span>
+                            </label>
+                            <div class="form-group-with-units">
+                                <input type="number" class="form-input" id="cfl-factor" min="0.1" max="0.9" step="0.1"
+                                    value="0.5">
+                                <span class="form-unit-addon">-</span>
+                            </div>
+                            <div class="form-help-text">Lower values ensure stability but increase computation time
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Parameter Actions -->
+            <div class="parameter-actions mt-4 p-3 bg-light rounded">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="parameter-validation-status">
+                        <span id="validation-status" class="text-muted">Ready to configure parameters</span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="reset-parameters">Reset to
+                            Defaults</button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="validate-parameters">Validate
+                            All</button>
+                        <button type="button" class="btn btn-primary btn-sm" id="apply-parameters">Apply
+                            Parameters</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content d-none" id="formulas-tab">
+        <div class="formulas-panel p-4">
+            <h2 class="section-title">
+                <span class="section-icon">🧮</span>
+                Formula Engine
+            </h2>
             
-            <main class="app-content">
-                <!-- Tab content containers -->
-                <div class="tab-content" id="visualization-tab">
-                    <div class="p-4">
-                        <h2 class="section-title">Visualization</h2>
-                        <div class="card">
-                            <div class="card-body d-flex justify-content-center align-items-center" style="height: 400px;">
-                                <p class="text-muted">Visualization will appear here</p>
+            <!-- Formula Categories Navigation -->
+            <div id="formula-categories" class="d-flex mb-4">
+                <div class="tabs">
+                    <div class="tab active" data-formula-group="material">Material Properties</div>
+                    <div class="tab" data-formula-group="physics">Physics Models</div>
+                    <div class="tab" data-formula-group="constants">Constants</div>
+                    <div class="tab" data-formula-group="editor">Formula Editor</div>
+                </div>
+            </div>
+
+            <div id="formula-content">
+                <!-- Material Property Formulas -->
+                <section id="material-formulas" class="formula-group">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="formula-group-title">Material Property Formulas</h3>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="add-material-formula">
+                            Add Formula
+                        </button>
+                    </div>
+                    
+                    <div class="formula-help mb-3 p-3 bg-light rounded">
+                        <p class="text-sm text-muted mb-2">
+                            Define temperature-dependent material properties using mathematical formulas.
+                            Use <code>T</code> for temperature in Kelvin.
+                        </p>
+                        <p class="text-sm text-muted mb-0">
+                            Example: <code>50.0 * (1.0 + 0.0005 * (T - 298.0))</code> for thermal conductivity
+                        </p>
+                    </div>
+                    
+                    <div id="material-formulas-list" class="formulas-list">
+                        <!-- Material formulas will be populated here -->
+                    </div>
+                </section>
+
+                <!-- Physics Formulas -->
+                <section id="physics-formulas" class="formula-group d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="formula-group-title">Physics Model Formulas</h3>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="add-physics-formula">
+                            Add Formula
+                        </button>
+                    </div>
+                    
+                    <div class="formula-help mb-3 p-3 bg-light rounded">
+                        <p class="text-sm text-muted mb-2">
+                            Define physics models like heat sources and boundary conditions.
+                            Available variables: <code>T</code>, <code>r</code>, <code>z</code>, <code>power</code>, <code>efficiency</code>
+                        </p>
+                        <p class="text-sm text-muted mb-0">
+                            Example: <code>power * efficiency / (2.0 * PI * sigma^2) * exp(-r^2 / (2.0 * sigma^2))</code>
+                        </p>
+                    </div>
+                    
+                    <div id="physics-formulas-list" class="formulas-list">
+                        <!-- Physics formulas will be populated here -->
+                    </div>
+                </section>
+
+                <!-- Constants Management -->
+                <section id="constants-management" class="formula-group d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="formula-group-title">Constants</h3>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="add-constant">
+                            Add Constant
+                        </button>
+                    </div>
+                    
+                    <div class="formula-help mb-3 p-3 bg-light rounded">
+                        <p class="text-sm text-muted mb-2">
+                            Define custom constants for use in formulas. Built-in constants include:
+                            <code>PI</code>, <code>E</code>, <code>STEFAN_BOLTZMANN</code>, <code>GAS_CONSTANT</code>
+                        </p>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h4 class="text-sm font-medium mb-3">Built-in Constants</h4>
+                            <div id="builtin-constants-list" class="constants-list">
+                                <!-- Built-in constants will be populated here -->
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h4 class="text-sm font-medium mb-3">Custom Constants</h4>
+                            <div id="custom-constants-list" class="constants-list">
+                                <!-- Custom constants will be populated here -->
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <div class="tab-content d-none" id="parameters-tab">
-                    <div class="parameters-panel">
-                        <!-- Parameters content will be loaded here via JS -->
-                        <div id="parameter-categories" class="d-flex mb-4">
-                            <div class="tabs">
-                                <div class="tab active" data-param-group="geometry">Furnace Geometry</div>
-                                <div class="tab" data-param-group="torches">Plasma Torches</div>
-                                <div class="tab" data-param-group="materials">Material Properties</div>
-                                <div class="tab" data-param-group="boundary">Boundary Conditions</div>
-                                <div class="tab" data-param-group="phenomena">Physical Phenomena</div>
-                                <div class="tab" data-param-group="simulation">Simulation Settings</div>
-                                <div class="tab" data-param-group="gasification">Gasification Parameters</div>
+                </section>
+
+                <!-- Formula Editor -->
+                <section id="formula-editor" class="formula-group d-none">
+                    <h3 class="formula-group-title">Formula Editor & Tester</h3>
+                    
+                    <div class="formula-editor-container">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <div class="form-group">
+                                    <label class="form-label">Formula</label>
+                                    <textarea 
+                                        id="formula-input" 
+                                        class="form-input formula-textarea" 
+                                        rows="4" 
+                                        placeholder="Enter your formula here... (e.g., 50.0 * (1.0 + 0.001 * (T - 298.0)))"
+                                    ></textarea>
+                                    <div id="formula-validation-feedback" class="form-feedback"></div>
+                                </div>
+                                
+                                <div class="form-group-row">
+                                    <div class="form-group-col">
+                                        <label class="form-label">Test Temperature (K)</label>
+                                        <input type="number" id="test-temperature" class="form-input" value="500" min="273" max="3000" step="1">
+                                    </div>
+                                    <div class="form-group-col">
+                                        <label class="form-label">Result</label>
+                                        <input type="text" id="formula-result" class="form-input" readonly placeholder="Enter formula and click Test">
+                                    </div>
+                                </div>
+                                
+                                <div class="formula-actions mt-3">
+                                    <button type="button" class="btn btn-primary" id="test-formula">Test Formula</button>
+                                    <button type="button" class="btn btn-outline-secondary" id="validate-formula">Validate Syntax</button>
+                                    <button type="button" class="btn btn-outline-secondary" id="clear-formula">Clear</button>
+                                </div>
                             </div>
+                            
+                            <div class="col-md-4">
+                                <div class="formula-reference">
+                                    <h4 class="text-sm font-medium mb-3">Available Functions</h4>
+                                    <div id="available-functions" class="reference-list">
+                                        <!-- Functions will be populated here -->
+                                    </div>
+                                    
+                                    <h4 class="text-sm font-medium mb-3 mt-4">Variables</h4>
+                                    <div id="available-variables" class="reference-list">
+                                        <!-- Variables will be populated here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Formula Actions -->
+            <div class="formula-actions-panel mt-4 p-3 bg-light rounded">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="formula-status">
+                        <span id="formula-status" class="text-muted">Ready to manage formulas</span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="validate-all-formulas">
+                            Validate All
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="export-formulas">
+                            Export Formulas
+                        </button>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="import-formulas">
+                            Import Formulas
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content d-none" id="analysis-tab">
+        <div class="p-4">
+            <h2 class="section-title">Analysis</h2>
+            <div class="card">
+                <div class="card-body">
+                    <p class="text-muted">Analysis tools will appear here</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content d-none" id="export-tab">
+        <div class="p-4">
+            <h2 class="section-title">Export</h2>
+            <div class="card">
+                <div class="card-body">
+                    <p class="text-muted">Export options will appear here</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    </main>
+    </div>
+
+    <!-- Project Settings Modal -->
+    <div id="project-settings-modal" class="modal d-none">
+        <div class="modal-backdrop"></div>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">Project Settings</h3>
+                    <button type="button" class="btn-close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="project-metadata-form" class="project-metadata-form">
+                        <div class="form-group">
+                            <label class="form-label" for="project-name">Project Name</label>
+                            <input type="text" class="form-input" id="project-name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="project-description">Description</label>
+                            <textarea class="form-input" id="project-description" name="description"
+                                rows="3"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="project-tags">Tags (comma-separated)</label>
+                            <input type="text" class="form-input" id="project-tags" name="tags"
+                                placeholder="research, industrial, test">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Created</label>
+                            <div class="text-muted" id="project-created">-</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Last Modified</label>
+                            <div class="text-muted" id="project-modified">-</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="save-project-metadata">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formula Modals -->
+    <!-- Add/Edit Material Formula Modal -->
+    <div id="material-formula-modal" class="modal d-none">
+        <div class="modal-backdrop"></div>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">Add Material Property Formula</h3>
+                    <button type="button" class="btn-close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="material-formula-form">
+                        <div class="form-group">
+                            <label class="form-label" for="material-property-name">Property Name</label>
+                            <input type="text" class="form-input" id="material-property-name" 
+                                   placeholder="e.g., thermal_conductivity_steel" required>
+                            <div class="form-help-text">Use descriptive names like 'thermal_conductivity_steel'</div>
                         </div>
                         
-                        <div id="parameter-content">
-                            <!-- Parameter group content will be loaded here -->
-                            <!-- Furnace Geometry parameter content (default) -->
-                            <section id="geometry" class="parameter-group">
-                                <div class="parameter-subgroup">
-                                    <h3 class="parameter-subgroup-title">Cylinder Dimensions</h3>
-                                    
-                                    <form id="geometry-form" class="mb-3">
-                                        <div class="form-group">
-                                            <label class="form-label">
-                                                Cylinder Height
-                                                <span class="parameter-info" data-info="The total height of the furnace cylinder. Valid range: 0.1m - 10m">?</span>
-                                            </label>
-                                            <div class="form-group-with-units">
-                                                <input type="number" class="form-input" id="cylinder-height" name="cylinder-height" min="0.1" max="10" step="0.1" value="2.0">
-                                                <span class="form-unit-addon">m</span>
-                                            </div>
-                                            <div class="form-help-text">Height of the cylindrical furnace (0.1 - 10m)</div>
-                                        </div>
-                                        
-                                        <div class="form-group">
-                                            <label class="form-label">
-                                                Cylinder Diameter
-                                                <span class="parameter-info" data-info="The diameter of the furnace cylinder. Valid range: 0.1m - 5m">?</span>
-                                            </label>
-                                            <div class="form-group-with-units">
-                                                <input type="number" class="form-input" id="cylinder-diameter" name="cylinder-diameter" min="0.1" max="5" step="0.1" value="1.0">
-                                                <span class="form-unit-addon">m</span>
-                                            </div>
-                                            <div class="form-help-text">Diameter of the cylindrical furnace (0.1 - 5m)</div>
-                                        </div>
-                                        
-                                        <button type="submit" class="btn btn-primary btn-sm mt-3">Update Geometry</button>
-                                        <div id="geometry-status" class="mt-2" style="display: none;"></div>
-                                    </form>
-                                </div>
-                            </section>
+                        <div class="form-group">
+                            <label class="form-label" for="material-formula-input">Formula</label>
+                            <textarea class="form-input formula-textarea" id="material-formula-input" 
+                                      rows="3" placeholder="e.g., 50.0 * (1.0 + 0.0005 * (T - 298.0))" required></textarea>
+                            <div id="material-formula-validation" class="form-feedback"></div>
                         </div>
-                    </div>
-                </div>
-                
-                <div class="tab-content d-none" id="analysis-tab">
-                    <div class="p-4">
-                        <h2 class="section-title">Analysis</h2>
-                        <div class="card">
-                            <div class="card-body">
-                                <p class="text-muted">Analysis tools will appear here</p>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Test Formula</label>
+                            <div class="d-flex gap-2">
+                                <input type="number" class="form-input" id="material-test-temp" 
+                                       value="500" min="273" max="3000" placeholder="Temperature (K)">
+                                <button type="button" class="btn btn-outline-primary" id="test-material-formula">Test</button>
+                                <input type="text" class="form-input" id="material-test-result" readonly placeholder="Result">
                             </div>
                         </div>
-                    </div>
+                    </form>
                 </div>
-                
-                <div class="tab-content d-none" id="export-tab">
-                    <div class="p-4">
-                        <h2 class="section-title">Export</h2>
-                        <div class="card">
-                            <div class="card-body">
-                                <p class="text-muted">Export options will appear here</p>
-                            </div>
-                        </div>
-                    </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="save-material-formula">Save Formula</button>
                 </div>
-            </main>
-        </div>
-        
-        <footer class="app-footer">
-            <div class="d-flex justify-content-between w-100">
-                <span id="status-text">Status: Ready</span>
-                <span>Plasma Furnace Simulator v1.0</span>
             </div>
-        </footer>
+        </div>
     </div>
-    
+
+    <!-- Add/Edit Physics Formula Modal -->
+    <div id="physics-formula-modal" class="modal d-none">
+        <div class="modal-backdrop"></div>
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">Add Physics Formula</h3>
+                    <button type="button" class="btn-close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="physics-formula-form">
+                        <div class="form-group">
+                            <label class="form-label" for="physics-property-name">Property Name</label>
+                            <input type="text" class="form-input" id="physics-property-name" 
+                                   placeholder="e.g., gaussian_heat_source" required>
+                            <div class="form-help-text">Use descriptive names like 'gaussian_heat_source'</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="physics-formula-input">Formula</label>
+                            <textarea class="form-input formula-textarea" id="physics-formula-input" 
+                                      rows="3" placeholder="e.g., power * efficiency / (2.0 * PI * sigma^2) * exp(-r^2 / (2.0 * sigma^2))" required></textarea>
+                            <div id="physics-formula-validation" class="form-feedback"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Test Formula</label>
+                            <div class="d-flex gap-2">
+                                <input type="number" class="form-input" id="physics-test-temp" 
+                                       value="500" min="273" max="3000" placeholder="Temperature (K)">
+                                <button type="button" class="btn btn-outline-primary" id="test-physics-formula">Test</button>
+                                <input type="text" class="form-input" id="physics-test-result" readonly placeholder="Result">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="save-physics-formula">Save Formula</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Constant Modal -->
+    <div id="constant-modal" class="modal d-none">
+        <div class="modal-backdrop"></div>
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 class="modal-title">Add Custom Constant</h3>
+                    <button type="button" class="btn-close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="constant-form">
+                        <div class="form-group">
+                            <label class="form-label" for="constant-name">Constant Name</label>
+                            <input type="text" class="form-input" id="constant-name" 
+                                   placeholder="e.g., k0, alpha, T_ref" required>
+                            <div class="form-help-text">Use descriptive names without spaces</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="constant-value">Value</label>
+                            <input type="number" class="form-input" id="constant-value" 
+                                   step="any" placeholder="e.g., 50.0, 0.001, 298.0" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label" for="constant-description">Description (Optional)</label>
+                            <input type="text" class="form-input" id="constant-description" 
+                                   placeholder="e.g., Reference thermal conductivity">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="save-constant">Save Constant</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="app-footer"></footer>
+    <div class="d-flex justify-content-between w-100">
+        <span id="status-text">Status: Ready</span>
+        <span>Plasma Furnace Simulator v1.0</span>
+    </div>
+    </footer>
+    </div>
+
     <script src="js/core/utils.js"></script>
     <script src="js/core/api.js"></script>
     <script src="js/features/parameters.js"></script>
     <script src="js/features/visualization.js"></script>
+    <script src="js/features/playback.js"></script>
     <script src="js/features/geometry.js"></script>
     <script src="js/features/debug-panel.js"></script>
+    <script src="js/features/project-management.js"></script>
+    <script src="js/features/formula-editor.js"></script>
     <script src="js/main.js"></script>
 </body>
+
 </html>

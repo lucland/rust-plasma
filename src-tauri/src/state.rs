@@ -91,10 +91,10 @@ pub fn update_geometry(
 
     // Update geometry in state
     let mut geometry = state.geometry.lock().unwrap();
-    info!("Previous geometry: height = {:.2} m, diameter = {:.2} m", 
-          geometry.cylinder_height, geometry.cylinder_diameter);
+    info!("Previous geometry: height = {:.2} m, radius = {:.2} m", 
+          geometry.cylinder_height, geometry.cylinder_radius);
     geometry.cylinder_height = height;
-    geometry.cylinder_diameter = diameter;
+    geometry.cylinder_radius = diameter / 2.0;
 
     // In a real implementation, we would create and store a CylindricalMesh instance:
     // 

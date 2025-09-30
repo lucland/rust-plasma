@@ -1,0 +1,334 @@
+/**
+ * visualization.css
+ * Styles for the 3D visualization component
+ */
+
+/* Visualization container */
+#visualization-container {
+    position: relative;
+    background: var(--color-neutral-50);
+    border-radius: var(--border-radius-md);
+    overflow: hidden;
+}
+
+/* Canvas styling */
+#visualization-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+#visualization-canvas:active {
+    cursor: grabbing;
+}
+
+/* Placeholder and loading states */
+#visualization-placeholder,
+#visualization-loading {
+    background: rgba(248, 249, 250, 0.95);
+    backdrop-filter: blur(2px);
+    border-radius: var(--border-radius-md);
+}
+
+#visualization-loading .spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* Temperature legend */
+#temperature-legend {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--color-neutral-200);
+    border-radius: var(--border-radius-sm);
+    box-shadow: var(--shadow-sm);
+    font-family: var(--font-family-mono);
+    min-width: 80px;
+}
+
+#legend-gradient {
+    background: linear-gradient(
+        to top,
+        #0066cc 0%,    /* Blue */
+        #00cccc 25%,   /* Cyan */
+        #00cc00 50%,   /* Green */
+        #cccc00 75%,   /* Yellow */
+        #cc0000 100%   /* Red */
+    );
+    border-radius: 2px;
+}
+
+#legend-max,
+#legend-min {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--color-neutral-700);
+    text-align: center;
+}
+
+/* Visualization controls */
+.visualization-controls {
+    display: flex;
+    gap: var(--spacing-2);
+}
+
+.visualization-controls .btn {
+    font-size: var(--font-size-sm);
+    padding: var(--spacing-1) var(--spacing-3);
+}
+
+/* Card header for visualization */
+.card-header {
+    background: var(--color-neutral-50);
+    border-bottom: 1px solid var(--color-neutral-200);
+    padding: var(--spacing-3) var(--spacing-4);
+}
+
+.card-title {
+    margin: 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-neutral-800);
+}
+
+/* Visualization tab layout */
+#visualization-tab {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#visualization-tab .p-4 {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#visualization-tab .card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; /* Important for flex children */
+}
+
+#visualization-tab .card-body {
+    flex: 1;
+    min-height: 0; /* Important for flex children */
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .visualization-controls {
+        flex-direction: column;
+        gap: var(--spacing-1);
+    }
+    
+    .visualization-controls .btn {
+        font-size: var(--font-size-xs);
+        padding: var(--spacing-1) var(--spacing-2);
+    }
+    
+    #temperature-legend {
+        top: 5px;
+        right: 5px;
+        padding: var(--spacing-2);
+        min-width: 60px;
+    }
+    
+    #legend-gradient {
+        width: 15px;
+        height: 80px;
+    }
+}
+
+/* Animation for smooth transitions */
+#visualization-placeholder,
+#visualization-loading {
+    transition: opacity 0.3s ease-in-out;
+}
+
+/* Hover effects for controls */
+.visualization-controls .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Focus styles for accessibility */
+#visualization-canvas:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+}
+
+/* Playback Controls */
+.playback-controls {
+    background: var(--color-neutral-50);
+    border-bottom: 1px solid var(--color-neutral-200);
+}
+
+.playback-buttons {
+    display: flex;
+    gap: var(--spacing-1);
+}
+
+.playback-buttons .btn {
+    min-width: 36px;
+    padding: var(--spacing-1) var(--spacing-2);
+    font-size: 14px;
+    line-height: 1;
+}
+
+.playback-slider {
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+}
+
+.playback-slider .form-range {
+    margin-bottom: var(--spacing-1);
+}
+
+.playback-settings {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 80px;
+}
+
+.playback-settings .form-label {
+    margin-bottom: var(--spacing-1);
+    font-size: var(--font-size-xs);
+    color: var(--color-neutral-600);
+}
+
+.playback-settings .form-select {
+    min-width: 70px;
+}
+
+.playback-settings .form-check {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
+}
+
+.playback-settings .form-check-input {
+    margin: 0;
+}
+
+.playback-settings .form-check-label {
+    margin: 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-neutral-600);
+}
+
+.playback-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    min-width: 100px;
+    font-size: var(--font-size-xs);
+    line-height: 1.3;
+}
+
+.playback-info > div {
+    white-space: nowrap;
+}
+
+/* Range slider styling */
+.form-range {
+    width: 100%;
+    height: 6px;
+    background: var(--color-neutral-200);
+    border-radius: 3px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.form-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--color-primary-500);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.form-range::-webkit-slider-thumb:hover {
+    background: var(--color-primary-600);
+}
+
+.form-range::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--color-primary-500);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    transition: background-color 0.2s ease;
+}
+
+.form-range::-moz-range-thumb:hover {
+    background: var(--color-primary-600);
+}
+
+/* Playback button states */
+.playback-buttons .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.playback-buttons .btn:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+/* Responsive playback controls */
+@media (max-width: 768px) {
+    .playback-controls .d-flex {
+        flex-direction: column;
+        gap: var(--spacing-2);
+    }
+    
+    .playback-buttons {
+        justify-content: center;
+    }
+    
+    .playback-slider {
+        min-width: auto;
+    }
+    
+    .playback-settings,
+    .playback-info {
+        align-items: center;
+        min-width: auto;
+    }
+    
+    .playback-info {
+        flex-direction: row;
+        gap: var(--spacing-3);
+        justify-content: space-between;
+    }
+}
+
+/* Animation for playback state changes */
+.playback-controls {
+    transition: all 0.3s ease-in-out;
+}
+
+.playback-controls[style*="display: none"] {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.spinner-border {
+    animation: spin 1s linear infinite;
+}

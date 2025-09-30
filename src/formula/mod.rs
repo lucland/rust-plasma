@@ -35,35 +35,11 @@ pub mod integration;
 /// Formula evaluation result
 pub type FormulaResult = Result<f64>;
 
-/// Basic formula engine interface (placeholder for future implementation)
-pub struct FormulaEngine {
-    // Will be implemented in subsequent tasks
-}
+// Re-export the main types from submodules
+pub use engine::FormulaEngine;
+pub use integration::FormulaManager;
 
-impl FormulaEngine {
-    /// Create a new formula engine
-    pub fn new() -> Self {
-        Self {}
-    }
-    
-    /// Evaluate a formula with given temperature (placeholder)
-    pub fn evaluate_formula(&mut self, _formula: &str, _temperature: f64) -> FormulaResult {
-        // Placeholder implementation - will be completed in subsequent tasks
-        Ok(0.0)
-    }
-    
-    /// Validate a formula syntax (placeholder)
-    pub fn validate_formula(&mut self, _formula: &str) -> Result<()> {
-        // Placeholder implementation - will be completed in subsequent tasks
-        Ok(())
-    }
-}
 
-impl Default for FormulaEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -72,13 +48,22 @@ mod tests {
     #[test]
     fn test_formula_engine_creation() {
         let engine = FormulaEngine::new();
-        // Basic creation test - more tests will be added in subsequent tasks
         drop(engine);
     }
     
     #[test]
-    fn test_formula_engine_default() {
-        let engine = FormulaEngine::default();
-        drop(engine);
+    fn test_formula_manager_creation() {
+        let manager = FormulaManager::new();
+        drop(manager);
+    }
+    
+    #[test]
+    fn test_integration() {
+        let mut manager = FormulaManager::new();
+        
+        // Test adding and evaluating a formula
+        assert!(manager.add_material_formula("test_property", "T * 2.0").is_ok());
+        let result = manager.evaluate_material_property("test_property", 100.0).unwrap();
+        assert_eq!(result, 200.0);
     }
 }

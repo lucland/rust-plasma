@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tauri Commands Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { margin: 5px; padding: 10px; }
+        .result { margin: 10px 0; padding: 10px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Tauri Commands Test</h1>
+    
+    <h2>Parameter Commands</h2>
+    <button onclick="testGetParameters()">Get Parameters</button>
+    <button onclick="testSaveParameters()">Save Parameters</button>
+    <button onclick="testLoadTemplate()">Load Template</button>
+    
+    <h2>Simulation Commands</h2>
+    <button onclick="testStartSimulation()">Start Simulation</button>
+    <button onclick="testStopSimulation()">Stop Simulation</button>
+    <button onclick="testGetProgress()">Get Progress</button>
+    
+    <h2>State Commands</h2>
+    <button onclick="testUpdateGeometry()">Update Geometry</button>
+    <button onclick="testGetDebugState()">Get Debug State</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const { invoke } = window.__TAURI__.core;
+        
+        function addResult(title, data) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = 'result';
+            div.innerHTML = `<strong>${title}:</strong><br><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            results.appendChild(div);
+        }
+        
+        async function testGetParameters() {
+            try {
+                const result = await invoke('get_parameters');
+                addResult('Get Parameters', result);
+            } catch (error) {
+                addResult('Get Parameters Error', error);
+            }
+        }
+        
+        async function testSaveParameters() {
+            try {
+                const params = {
+                    geometry: { cylinder_height: 2.5, cylinder_diameter: 1.2 },
+                    torches: { count: 1, positions: [], power: 150.0 }
+                };
+                const result = await invoke('save_parameters', { parameters: params });
+                addResult('Save Parameters', result);
+            } catch (error) {
+                addResult('Save Parameters Error', error);
+            }
+        }
+        
+        async function testLoadTemplate() {
+            try {
+                const result = await invoke('load_parameter_template', { templateId: 'small_furnace' });
+                addResult('Load Template', result);
+            } catch (error) {
+                addResult('Load Template Error', error);
+            }
+        }
+        
+        async function testStartSimulation() {
+            try {
+                const params = {
+                    geometry: { cylinder_height: 2.0, cylinder_diameter: 1.0 },
+                    torches: { count: 2, positions: [], power: 100.0 }
+                };
+                const result = await invoke('start_simulation', { parameters: params });
+                addResult('Start Simulation', result);
+            } catch (error) {
+                addResult('Start Simulation Error', error);
+            }
+        }
+        
+        async function testStopSimulation() {
+            try {
+                const result = await invoke('stop_simulation', { id: 'test_sim_123' });
+                addResult('Stop Simulation', result);
+            } catch (error) {
+                addResult('Stop Simulation Error', error);
+            }
+        }
+        
+        async function testGetProgress() {
+            try {
+                const result = await invoke('get_progress', { id: 'test_sim_123' });
+                addResult('Get Progress', result);
+            } catch (error) {
+                addResult('Get Progress Error', error);
+            }
+        }
+        
+        async function testUpdateGeometry() {
+            try {
+                const result = await invoke('update_geometry', { height: 3.0, diameter: 1.5 });
+                addResult('Update Geometry', result);
+            } catch (error) {
+                addResult('Update Geometry Error', error);
+            }
+        }
+        
+        async function testGetDebugState() {
+            try {
+                const result = await invoke('get_debug_state');
+                addResult('Get Debug State', result);
+            } catch (error) {
+                addResult('Get Debug State Error', error);
+            }
+        }
+    </script>
+</body>
+</html>

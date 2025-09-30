@@ -246,3 +246,163 @@ input:checked + .switch-slider:before {
   width: 100%;
   margin-bottom: var(--spacing-3);
 }
+
+/* Parameter actions section */
+.parameter-actions {
+  border-top: 1px solid var(--color-neutral-200);
+  margin-top: var(--spacing-4);
+}
+
+.parameter-validation-status .text-success {
+  color: var(--color-success) !important;
+}
+
+.parameter-validation-status .text-warning {
+  color: var(--color-warning) !important;
+}
+
+.parameter-validation-status .text-muted {
+  color: var(--color-neutral-600) !important;
+}
+
+/* Mesh information display */
+.mesh-info {
+  background-color: var(--color-neutral-50);
+  border: 1px solid var(--color-neutral-200);
+}
+
+.mesh-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--spacing-2);
+  font-size: var(--font-size-sm);
+}
+
+.mesh-stats > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Torch configuration improvements */
+.torch-config {
+  transition: all var(--transition-fast) ease;
+}
+
+.torch-config:hover {
+  border-color: var(--color-primary-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.torch-config-header {
+  background: white;
+  z-index: 1;
+}
+
+/* Material properties grid improvements */
+.material-properties-grid .property-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.material-properties-grid .form-label {
+  font-size: var(--font-size-xs);
+  margin-bottom: var(--spacing-1);
+}
+
+.material-properties-grid .form-input {
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+}
+
+/* Custom material properties section */
+#custom-material-properties {
+  background-color: var(--color-warning-light);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-3);
+}
+
+#custom-material-properties .form-input {
+  background-color: white;
+}
+
+/* Parameter group tabs */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  border-bottom: 1px solid var(--color-neutral-200);
+  margin-bottom: var(--spacing-4);
+}
+
+.tab {
+  padding: var(--spacing-2) var(--spacing-3);
+  background-color: var(--color-neutral-100);
+  border: 1px solid var(--color-neutral-200);
+  border-bottom: none;
+  border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-neutral-600);
+  transition: all var(--transition-fast) ease;
+  user-select: none;
+}
+
+.tab:hover {
+  background-color: var(--color-neutral-50);
+  color: var(--color-neutral-800);
+}
+
+.tab.active {
+  background-color: white;
+  color: var(--color-primary-700);
+  border-color: var(--color-primary-200);
+  border-bottom: 1px solid white;
+  margin-bottom: -1px;
+}
+
+/* Form validation improvements */
+.form-input.is-valid {
+  border-color: var(--color-success);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%232b9348' d='M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06l2.5 2.5 6.94-6.94a.75.75 0 011.06 0z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-2) center;
+  background-size: 16px 16px;
+  padding-right: calc(var(--spacing-3) + 20px);
+}
+
+.form-input.is-invalid {
+  border-color: var(--color-danger);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23e03131' d='M8 16A8 8 0 1 1 8 0a8 8 0 0 1 0 16zM5.354 4.646a.5.5 0 1 0-.708.708L7.293 8l-2.647 2.646a.5.5 0 0 0 .708.708L8 8.707l2.646 2.647a.5.5 0 0 0 .708-.708L8.707 8l2.647-2.646a.5.5 0 0 0-.708-.708L8 7.293 5.354 4.646z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-2) center;
+  background-size: 16px 16px;
+  padding-right: calc(var(--spacing-3) + 20px);
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .tabs {
+    flex-direction: column;
+  }
+  
+  .tab {
+    border-radius: var(--border-radius-md);
+    border-bottom: 1px solid var(--color-neutral-200);
+    margin-bottom: var(--spacing-1);
+  }
+  
+  .tab.active {
+    border-bottom: 1px solid var(--color-primary-200);
+    margin-bottom: var(--spacing-1);
+  }
+  
+  .form-group-row {
+    flex-direction: column;
+  }
+  
+  .mesh-stats {
+    grid-template-columns: 1fr;
+  }
+}

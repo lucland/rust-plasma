@@ -13,77 +13,77 @@ This implementation plan converts the feature design into a series of actionable
   - Set up basic error handling types and Result patterns
   - _Requirements: 8.1_
 
-- [ ] 2. Basic Cylindrical Mesh Implementation
+- [x] 2. Basic Cylindrical Mesh Implementation
   - Create CylindricalMesh struct with coordinate generation for 2D axisymmetric geometry
   - Implement mesh initialization with configurable radial and axial node counts
   - Add methods for coordinate access, cell volume calculation, and neighbor identification
   - Write basic mesh validation and boundary condition setup
   - _Requirements: 1.1, 1.4_
 
-- [ ] 3. Core Material Properties System
+- [x] 3. Core Material Properties System
   - Implement Material struct with constant and formula-based properties
   - Create predefined materials library (Carbon Steel, Stainless Steel, Aluminum, etc.)
   - Add temperature-dependent property evaluation methods
   - Implement basic property validation and range checking
   - _Requirements: 3.4, 3.5_
 
-- [ ] 4. Plasma Torch Heat Source Model
+- [x] 4. Plasma Torch Heat Source Model
   - Implement PlasmaTorch struct with Gaussian heat distribution calculation
   - Add 3D positioning and power configuration for torches
   - Create heat source evaluation methods for mesh cells
   - Implement multi-torch support with heat source superposition
   - _Requirements: 1.2, 3.3_
 
-- [ ] 5. Forward Euler Heat Solver (MVP)
+- [x] 5. Forward Euler Heat Solver (MVP)
   - Implement HeatSolver with Forward Euler explicit time stepping
   - Add CFL stability condition calculation and automatic time step control
   - Create heat equation discretization in cylindrical coordinates
   - Implement boundary condition application (symmetry, convection-radiation)
   - _Requirements: 1.3, 1.7, 4.1, 4.6_
 
-- [ ] 6. Basic Simulation Engine Integration
+- [x] 6. Basic Simulation Engine Integration
   - Create SimulationEngine struct that orchestrates mesh, physics, and solver
   - Implement simulation loop with progress tracking and cancellation support
   - Add temperature field storage and time step management
   - Create basic energy conservation monitoring and instability detection
   - _Requirements: 1.5, 1.6, 1.7, 1.8_
 
-- [ ] 7. Minimal Tauri Application Setup
+- [x] 7. Minimal Tauri Application Setup
   - Initialize Tauri project structure with basic HTML/CSS/JavaScript frontend
   - Create essential Tauri commands for simulation control (start, stop, get_progress)
   - Implement basic parameter passing between frontend and backend
   - Add simple UI layout with parameter input areas and visualization placeholder
   - _Requirements: 8.1, 8.2_
 
-- [ ] 8. Basic 3D Heatmap Visualization
+- [x] 8. Basic 3D Heatmap Visualization
   - Implement VisualizationData preparation from simulation results
   - Create Three.js-based 3D temperature visualization with color mapping
   - Add basic camera controls (rotate, zoom, pan) for 3D interaction
   - Implement real-time visualization updates during simulation
   - _Requirements: 2.1, 2.3, 8.1_
 
-- [ ] 9. Parameter Configuration Interface
+- [x] 9. Parameter Configuration Interface
   - Create HTML forms for furnace geometry, mesh settings, and torch configuration
   - Implement real-time parameter validation with range checking and error display
   - Add material selection dropdown with property display
   - Create mesh preset selection (Fast: 50×50, Balanced: 100×100, High: 200×200)
   - _Requirements: 3.1, 3.2, 3.3, 3.4_
 
-- [ ] 10. Simulation Playback Controls
+- [x] 10. Simulation Playback Controls
   - Implement time step storage and retrieval for animation playback
   - Create playback UI controls (play, pause, step forward/backward, time slider)
   - Add animation loop with configurable speed and smooth transitions
   - Implement temperature field interpolation for smooth visualization
   - _Requirements: 2.2, 8.1_
 
-- [ ] 11. Basic Project Management
+- [x] 11. Basic Project Management
   - Implement Project struct with metadata and configuration serialization
   - Create save/load functionality for project files in JSON format
   - Add recent files list and project management UI
   - Implement default project templates and parameter validation on load
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6_
 
-- [ ] 12. Rhai Formula Engine Integration
+- [x] 12. Rhai Formula Engine Integration
   - Set up Rhai scripting engine with sandboxed execution environment
   - Implement formula evaluation for temperature-dependent material properties
   - Add formula validation, syntax error reporting, and safety limits
