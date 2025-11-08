@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scrolling Test</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+        }
+
+        .header {
+            background: #007bff;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .main {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+        }
+
+        .sidebar-header {
+            padding: 1rem;
+            background: white;
+            border-bottom: 1px solid #dee2e6;
+            flex-shrink: 0;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 1rem;
+            min-height: 0;
+            scroll-behavior: smooth;
+            scrollbar-width: thin;
+            scrollbar-color: #6c757d #f8f9fa;
+        }
+
+        .sidebar-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-track {
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: #6c757d;
+            border-radius: 4px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb:hover {
+            background: #343a40;
+        }
+
+        .content {
+            background: white;
+            padding: 1rem;
+            overflow: auto;
+        }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 0.5rem 1rem;
+            border-top: 1px solid #dee2e6;
+            text-align: center;
+            font-size: 0.875rem;
+            color: #6c757d;
+        }
+
+        .test-section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            background: white;
+        }
+
+        .test-section h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            color: #343a40;
+        }
+
+        .form-field {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+        }
+
+        .form-help {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+        }
+
+        .scroll-indicator {
+            position: fixed;
+            top: 50%;
+            left: 200px;
+            background: rgba(0, 123, 255, 0.9);
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            font-size: 0.75rem;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Scrolling Test - Parameters Panel</h1>
+    </div>
+
+    <div class="main">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Simulation Parameters</h2>
+            </div>
+            <div class="sidebar-content" id="sidebar-content">
+                <!-- Test Section 1 -->
+                <div class="test-section">
+                    <h3>Furnace Geometry</h3>
+                    <div class="form-field">
+                        <label class="form-label">Height (m)</label>
+                        <input type="number" class="form-input" value="2.0" min="1.0" max="5.0" step="0.1">
+                        <div class="form-help">1.0 - 5.0 meters</div>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Radius (m)</label>
+                        <input type="number" class="form-input" value="1.0" min="0.5" max="2.0" step="0.1">
+                        <div class="form-help">0.5 - 2.0 meters</div>
+                    </div>
+                </div>
+
+                <!-- Test Section 2 -->
+                <div class="test-section">
+                    <h3>Plasma Torch</h3>
+                    <div class="form-field">
+                        <label class="form-label">Power (kW)</label>
+                        <input type="number" class="form-input" value="150" min="50" max="300">
+                        <div class="form-help">50 - 300 kW</div>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Position R (m)</label>
+                        <input type="number" class="form-input" value="0.0" min="0" max="2.0" step="0.1">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Position Z (m)</label>
+                        <input type="number" class="form-input" value="1.0" min="0" max="5.0" step="0.1">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Efficiency</label>
+                        <input type="number" class="form-input" value="0.8" min="0.7" max="0.9" step="0.01">
+                        <div class="form-help">0.7 - 0.9</div>
+                    </div>
+                </div>
+
+                <!-- Test Section 3 -->
+                <div class="test-section">
+                    <h3>Material</h3>
+                    <div class="form-field">
+                        <label class="form-label">Material Type</label>
+                        <select class="form-select">
+                            <option>Steel</option>
+                            <option>Aluminum</option>
+                            <option>Concrete</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Test Section 4 -->
+                <div class="test-section">
+                    <h3>Simulation Settings</h3>
+                    <div class="form-field">
+                        <label class="form-label">Duration (s)</label>
+                        <input type="number" class="form-input" value="60" min="10" max="300">
+                        <div class="form-help">10 - 300 seconds</div>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Time Step (s)</label>
+                        <input type="number" class="form-input" value="0.5" min="0.1" max="1.0" step="0.1">
+                        <div class="form-help">0.1 - 1.0 seconds</div>
+                    </div>
+                </div>
+
+                <!-- Test Section 5 -->
+                <div class="test-section">
+                    <h3>Advanced Settings</h3>
+                    <div class="form-field">
+                        <label class="form-label">Mesh Resolution</label>
+                        <select class="form-select">
+                            <option>Coarse (Fast)</option>
+                            <option selected>Medium (Balanced)</option>
+                            <option>Fine (Accurate)</option>
+                            <option>Ultra (Slow)</option>
+                        </select>
+                        <div class="form-help">Higher resolution = more accurate but slower</div>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Convergence Tolerance</label>
+                        <input type="number" class="form-input" value="0.0001" step="0.000001">
+                        <div class="form-help">1e-6 to 1e-3</div>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Max Iterations</label>
+                        <input type="number" class="form-input" value="1000" min="100" max="10000" step="100">
+                        <div class="form-help">100 - 10000 iterations</div>
+                    </div>
+                </div>
+
+                <!-- Test Section 6 -->
+                <div class="test-section">
+                    <h3>Output Settings</h3>
+                    <div class="form-field">
+                        <label class="form-label">Output Frequency (steps)</label>
+                        <input type="number" class="form-input" value="10" min="1" max="100">
+                        <div class="form-help">Save results every N time steps</div>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Export Format</label>
+                        <select class="form-select">
+                            <option>CSV (Spreadsheet)</option>
+                            <option selected>JSON (Data)</option>
+                            <option>VTK (Visualization)</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">Include Metadata</label>
+                        <select class="form-select">
+                            <option selected>Yes</option>
+                            <option>No</option>
+                        </select>
+                        <div class="form-help">Include simulation parameters in output</div>
+                    </div>
+                </div>
+
+                <!-- Status Section -->
+                <div class="test-section" style="background: #d4edda; border-color: #c3e6cb;">
+                    <div style="text-align: center; color: #155724; font-weight: 500;">
+                        ✓ Ready to configure parameters
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <h2>Scrolling Test Results</h2>
+            <p>This test verifies that the left sidebar with parameters can scroll properly when the content exceeds the available height.</p>
+            
+            <h3>Test Instructions:</h3>
+            <ol>
+                <li>Try scrolling in the left sidebar using your mouse wheel</li>
+                <li>Try dragging the scrollbar on the right edge of the sidebar</li>
+                <li>Verify that all parameter sections are accessible</li>
+                <li>Check that the header stays fixed while content scrolls</li>
+            </ol>
+
+            <h3>Expected Behavior:</h3>
+            <ul>
+                <li>✅ Sidebar content should scroll smoothly</li>
+                <li>✅ Scrollbar should be visible when content overflows</li>
+                <li>✅ Header should remain fixed at the top</li>
+                <li>✅ All parameter sections should be accessible</li>
+            </ul>
+
+            <div id="scroll-info" style="margin-top: 2rem; padding: 1rem; background: #f8f9fa; border-radius: 0.375rem;">
+                <strong>Scroll Position:</strong> <span id="scroll-position">0</span>px<br>
+                <strong>Scroll Height:</strong> <span id="scroll-height">0</span>px<br>
+                <strong>Client Height:</strong> <span id="client-height">0</span>px<br>
+                <strong>Can Scroll:</strong> <span id="can-scroll">No</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="scroll-indicator" id="scroll-indicator">
+        Scrolling...
+    </div>
+
+    <div class="footer">
+        Plasma Furnace Simulator - Scrolling Test
+    </div>
+
+    <script>
+        const sidebarContent = document.getElementById('sidebar-content');
+        const scrollPosition = document.getElementById('scroll-position');
+        const scrollHeight = document.getElementById('scroll-height');
+        const clientHeight = document.getElementById('client-height');
+        const canScroll = document.getElementById('can-scroll');
+        const scrollIndicator = document.getElementById('scroll-indicator');
+
+        function updateScrollInfo() {
+            scrollPosition.textContent = Math.round(sidebarContent.scrollTop);
+            scrollHeight.textContent = sidebarContent.scrollHeight;
+            clientHeight.textContent = sidebarContent.clientHeight;
+            canScroll.textContent = sidebarContent.scrollHeight > sidebarContent.clientHeight ? 'Yes' : 'No';
+        }
+
+        sidebarContent.addEventListener('scroll', () => {
+            updateScrollInfo();
+            
+            // Show scroll indicator
+            scrollIndicator.style.display = 'block';
+            clearTimeout(scrollIndicator.timeout);
+            scrollIndicator.timeout = setTimeout(() => {
+                scrollIndicator.style.display = 'none';
+            }, 1000);
+        });
+
+        // Update info on load and resize
+        window.addEventListener('load', updateScrollInfo);
+        window.addEventListener('resize', updateScrollInfo);
+
+        // Initial update
+        updateScrollInfo();
+    </script>
+</body>
+</html>

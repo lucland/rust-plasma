@@ -48,7 +48,10 @@ pub fn run() {
             }
             
             // Log library information
+            info!("🚀 [RUST] Tauri application starting...");
             let lib_info = lib_info();
+            info!("� [RRUST] Plasma simulation library: {} v{}", lib_info.name, lib_info.version);
+            info!("🖥️ [RUST] Frontend UI loading...");
             info!("Initializing {} v{}", lib_info.name, lib_info.version);
             info!("{}", lib_info.description);
             
@@ -174,7 +177,9 @@ pub fn run() {
             simulation::run_simulation,
             simulation::start_simulation,
             simulation::stop_simulation,
+            simulation::cancel_simulation,
             simulation::get_simulation_status,
+            simulation::get_simulation_progress,
             simulation::get_progress,
             simulation::get_simulation_results,
             simulation::get_visualization_data,
@@ -182,6 +187,7 @@ pub fn run() {
             simulation::get_playback_info,
             state::update_geometry,
             state::get_debug_state,
+            state::log_frontend_message,
             project::create_new_project,
             project::save_project,
             project::load_project,
@@ -207,3 +213,5 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+

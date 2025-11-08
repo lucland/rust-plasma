@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Integration Test - Plasma Furnace Simulator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .test-pass {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-pending {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .test-controls {
+            margin: 20px 0;
+        }
+        .test-controls button {
+            margin: 5px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        .test-log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #007bff;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Frontend Integration Test Suite</h1>
+        <p>This test suite verifies the complete user workflow from parameter input to visualization.</p>
+        
+        <div class="test-controls">
+            <button id="run-all-tests" class="btn-primary">Run All Tests</button>
+            <button id="run-workflow-test" class="btn-secondary">Test Complete Workflow</button>
+            <button id="run-error-tests" class="btn-secondary">Test Error Handling</button>
+            <button id="run-performance-tests" class="btn-secondary">Test Performance</button>
+            <button id="clear-log" class="btn-danger">Clear Log</button>
+        </div>
+
+        <div class="progress-bar">
+            <div id="test-progress" class="progress-fill" style="width: 0%"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Results Summary</h3>
+            <div id="test-summary">
+                <div id="total-tests">Total Tests: 0</div>
+                <div id="passed-tests">Passed: 0</div>
+                <div id="failed-tests">Failed: 0</div>
+                <div id="pending-tests">Pending: 0</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>1. Component Initialization Tests</h3>
+            <div id="init-test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Parameter Validation Tests</h3>
+            <div id="param-test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. State Transition Tests</h3>
+            <div id="state-test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Simulation Workflow Tests</h3>
+            <div id="simulation-test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Visualization Tests</h3>
+            <div id="visualization-test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>6. Animation Tests</h3>
+            <div id="animation-test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>7. Error Handling Tests</h3>
+            <div id="error-test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>8. Performance Tests</h3>
+            <div id="performance-test-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test Execution Log</h3>
+            <div id="test-log" class="test-log"></div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Integration Test Suite for Frontend Rebuild
+         * Tests the complete user workflow and component integration
+         */
+        class IntegrationTestSuite {
+            constructor() {
+                this.tests = [];
+                this.results = {
+                    total: 0,
+                    passed: 0,
+                    failed: 0,
+                    pending: 0
+                };
+                this.logElement = document.getElementById('test-log');
+                this.isRunning = false;
+                
+                this.setupEventListeners();
+                this.initializeTests();
+            }
+
+            setupEventListeners() {
+                document.getElementById('run-all-tests').addEventListener('click', () => {
+                    this.runAllTests();
+                });
+                
+                document.getElementById('run-workflow-test').addEventListener('click', () => {
+                    this.runWorkflowTests();
+                });
+                
+                document.getElementById('run-error-tests').addEventListener('click', () => {
+                    this.runErrorTests();
+                });
+                
+                document.getElementById('run-performance-tests').addEventListener('click', () => {
+                    this.runPerformanceTests();
+                });
+                
+                document.getElementById('clear-log').addEventListener('click', () => {
+                    this.clearLog();
+                });
+            }
+
+            initializeTests() {
+                this.log('Initializing test suite...');
+                
+                // Component initialization tests
+                this.addTest('Component Initialization', 'EventBus Creation', () => {
+                    return typeof EventBus !== 'undefined';
+                });
+                
+                this.addTest('Component Initialization', 'App Class Available', () => {
+                    return typeof App !== 'undefined';
+                });
+                
+                this.addTest('Component Initialization', 'SimulationParameters Available', () => {
+                    return typeof SimulationParameters !== 'undefined';
+                });
+                
+                this.addTest('Component Initialization', 'AppState Available', () => {
+                    return typeof AppState !== 'undefined';
+                });
+
+                // Parameter validation tests
+                this.addTest('Parameter Validation', 'Default Parameters Valid', () => {
+                    const params = new SimulationParameters();
+                    const validation = params.validate();
+                    return validation.isValid;
+                });
+                
+                this.addTest('Parameter Validation', 'Invalid Height Rejected', () => {
+                    const params = new SimulationParameters({ furnace: { height: 10 } });
+                    const validation = params.validate();
+                    return !validation.isValid;
+                });
+                
+                this.addTest('Parameter Validation', 'Invalid Material Rejected', () => {
+                    const params = new SimulationParameters({ material: 'InvalidMaterial' });
+                    const validation = params.validate();
+                    return !validation.isValid;
+                });
+
+                // State transition tests
+                this.addTest('State Transitions', 'Initial to Ready Transition', async () => {
+                    const eventBus = new EventBus();
+                    const appState = new AppState(eventBus);
+                    return appState.transition('READY', {}, 'Test transition');
+                });
+                
+                this.addTest('State Transitions', 'Invalid Transition Rejected', async () => {
+                    const eventBus = new EventBus();
+                    const appState = new AppState(eventBus);
+                    return !appState.transition('RESULTS', {}, 'Invalid transition');
+                });
+
+                // Simulation workflow tests
+                this.addTest('Simulation Workflow', 'Mock Simulation Creation', async () => {
+                    try {
+                        const mockResults = this.createMockSimulationResults();
+                        return mockResults && mockResults.timeSteps && mockResults.timeSteps.length > 0;
+                    } catch (error) {
+                        return false;
+                    }
+                });
+
+                // Error handling tests
+                this.addTest('Error Handling', 'ErrorHandler Creation', () => {
+                    const eventBus = new EventBus();
+                    const errorHandler = new ErrorHandler(eventBus);
+                    return errorHandler && typeof errorHandler.handle === 'function';
+                });
+                
+                this.addTest('Error Handling', 'Error Processing', () => {
+                    const eventBus = new EventBus();
+                    const errorHandler = new ErrorHandler(eventBus);
+                    const result = errorHandler.handle(new Error('Test error'), 'test');
+                    return result && result.userMessage;
+                });
+
+                this.updateSummary();
+                this.log(`Initialized ${this.tests.length} tests`);
+            }
+
+            addTest(category, name, testFunction) {
+                this.tests.push({
+                    category,
+                    name,
+                    testFunction,
+                    status: 'pending',
+                    result: null,
+                    error: null,
+                    duration: 0
+                });
+                this.results.total++;
+                this.results.pending++;
+            }
+
+            async runAllTests() {
+                if (this.isRunning) {
+                    this.log('Tests are already running...');
+                    return;
+                }
+
+                this.isRunning = true;
+                this.log('Starting complete test suite...');
+                
+                try {
+                    await this.runComponentTests();
+                    await this.runParameterTests();
+                    await this.runStateTests();
+                    await this.runSimulationTests();
+                    await this.runErrorTests();
+                    await this.runPerformanceTests();
+                    
+                    this.log('All tests completed!');
+                    this.generateReport();
+                } catch (error) {
+                    this.log(`Test suite failed: ${error.message}`);
+                } finally {
+                    this.isRunning = false;
+                }
+            }
+
+            async runComponentTests() {
+                this.log('Running component initialization tests...');
+                await this.runTestsByCategory('Component Initialization');
+            }
+
+            async runParameterTests() {
+                this.log('Running parameter validation tests...');
+                await this.runTestsByCategory('Parameter Validation');
+            }
+
+            async runStateTests() {
+                this.log('Running state transition tests...');
+                await this.runTestsByCategory('State Transitions');
+            }
+
+            async runSimulationTests() {
+                this.log('Running simulation workflow tests...');
+                await this.runTestsByCategory('Simulation Workflow');
+            }
+
+            async runWorkflowTests() {
+                if (this.isRunning) return;
+                
+                this.isRunning = true;
+                this.log('Testing complete user workflow...');
+                
+                try {
+                    // Test the complete workflow: parameters -> simulation -> visualization -> animation
+                    await this.testCompleteWorkflow();
+                } catch (error) {
+                    this.log(`Workflow test failed: ${error.message}`);
+                } finally {
+                    this.isRunning = false;
+                }
+            }
+
+            async runErrorTests() {
+                this.log('Running error handling tests...');
+                await this.runTestsByCategory('Error Handling');
+            }
+
+            async runPerformanceTests() {
+                this.log('Running performance tests...');
+                
+                // Test EventBus performance
+                await this.testEventBusPerformance();
+                
+                // Test parameter validation performance
+                await this.testParameterValidationPerformance();
+                
+                // Test state transition performance
+                await this.testStateTransitionPerformance();
+            }
+
+            async runTestsByCategory(category) {
+                const categoryTests = this.tests.filter(test => test.category === category);
+                
+                for (const test of categoryTests) {
+                    await this.runSingleTest(test);
+                    this.updateProgress();
+                    this.updateSummary();
+                    this.displayTestResult(test);
+                    
+                    // Small delay to prevent blocking
+                    await this.delay(10);
+                }
+            }
+
+            async runSingleTest(test) {
+                const startTime = performance.now();
+                
+                try {
+                    this.log(`Running: ${test.category} - ${test.name}`);
+                    
+                    const result = await test.testFunction();
+                    const endTime = performance.now();
+                    
+                    test.duration = endTime - startTime;
+                    test.result = result;
+                    
+                    if (result) {
+                        test.status = 'passed';
+                        this.results.passed++;
+                        this.results.pending--;
+                        this.log(`✓ PASS: ${test.name} (${test.duration.toFixed(2)}ms)`);
+                    } else {
+                        test.status = 'failed';
+                        this.results.failed++;
+                        this.results.pending--;
+                        this.log(`✗ FAIL: ${test.name} (${test.duration.toFixed(2)}ms)`);
+                    }
+                } catch (error) {
+                    const endTime = performance.now();
+                    test.duration = endTime - startTime;
+                    test.status = 'failed';
+                    test.error = error;
+                    this.results.failed++;
+                    this.results.pending--;
+                    this.log(`✗ ERROR: ${test.name} - ${error.message} (${test.duration.toFixed(2)}ms)`);
+                }
+            }
+
+            async testCompleteWorkflow() {
+                this.log('=== Testing Complete User Workflow ===');
+                
+                // Step 1: Initialize application components
+                this.log('Step 1: Initializing components...');
+                const eventBus = new EventBus();
+                const appState = new AppState(eventBus);
+                const errorHandler = new ErrorHandler(eventBus);
+                
+                // Step 2: Test parameter validation and state transitions
+                this.log('Step 2: Testing parameter validation...');
+                const params = new SimulationParameters();
+                const validation = params.validate();
+                
+                if (!validation.isValid) {
+                    throw new Error('Default parameters should be valid');
+                }
+                
+                // Step 3: Test state transition to READY
+                this.log('Step 3: Testing state transition to READY...');
+                const readyTransition = appState.transition('READY', { parameters: params.toJSON() }, 'Parameters validated');
+                
+                if (!readyTransition) {
+                    throw new Error('Should be able to transition to READY state');
+                }
+                
+                // Step 4: Test simulation workflow
+                this.log('Step 4: Testing simulation workflow...');
+                const runningTransition = appState.transition('RUNNING', {}, 'Simulation started');
+                
+                if (!runningTransition) {
+                    throw new Error('Should be able to transition to RUNNING state');
+                }
+                
+                // Step 5: Test simulation completion and results
+                this.log('Step 5: Testing simulation completion...');
+                const mockResults = this.createMockSimulationResults();
+                const resultsTransition = appState.transition('RESULTS', { 
+                    simulation: { results: mockResults } 
+                }, 'Simulation completed');
+                
+                if (!resultsTransition) {
+                    throw new Error('Should be able to transition to RESULTS state');
+                }
+                
+                // Step 6: Test visualization data processing
+                this.log('Step 6: Testing visualization data...');
+                if (!mockResults.timeSteps || mockResults.timeSteps.length === 0) {
+                    throw new Error('Mock results should have time steps');
+                }
+                
+                if (!mockResults.temperatureData || mockResults.temperatureData.length === 0) {
+                    throw new Error('Mock results should have temperature data');
+                }
+                
+                // Step 7: Test animation readiness
+                this.log('Step 7: Testing animation readiness...');
+                const animationReady = mockResults.timeSteps.length > 1;
+                
+                if (!animationReady) {
+                    this.log('Warning: Animation not ready (single time step)');
+                }
+                
+                this.log('✓ Complete workflow test passed!');
+                
+                // Add workflow test result
+                this.addWorkflowTestResult('Complete User Workflow', true, 'All workflow steps completed successfully');
+            }
+
+            async testEventBusPerformance() {
+                this.log('Testing EventBus performance...');
+                
+                const eventBus = new EventBus();
+                const eventCount = 1000;
+                let receivedCount = 0;
+                
+                // Set up listener
+                eventBus.on('test-event', () => {
+                    receivedCount++;
+                });
+                
+                // Measure emission performance
+                const startTime = performance.now();
+                
+                for (let i = 0; i < eventCount; i++) {
+                    eventBus.emit('test-event', { data: i });
+                }
+                
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                const eventsPerMs = eventCount / duration;
+                
+                this.log(`EventBus Performance: ${eventCount} events in ${duration.toFixed(2)}ms (${eventsPerMs.toFixed(2)} events/ms)`);
+                
+                if (receivedCount !== eventCount) {
+                    throw new Error(`Expected ${eventCount} events, received ${receivedCount}`);
+                }
+                
+                if (duration > 100) {
+                    this.log('Warning: EventBus performance may be slow');
+                }
+                
+                this.addPerformanceTestResult('EventBus Performance', duration < 100, `${duration.toFixed(2)}ms for ${eventCount} events`);
+            }
+
+            async testParameterValidationPerformance() {
+                this.log('Testing parameter validation performance...');
+                
+                const validationCount = 100;
+                const startTime = performance.now();
+                
+                for (let i = 0; i < validationCount; i++) {
+                    const params = new SimulationParameters();
+                    params.validate();
+                }
+                
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                const validationsPerMs = validationCount / duration;
+                
+                this.log(`Parameter Validation Performance: ${validationCount} validations in ${duration.toFixed(2)}ms (${validationsPerMs.toFixed(2)} validations/ms)`);
+                
+                if (duration > 50) {
+                    this.log('Warning: Parameter validation may be slow');
+                }
+                
+                this.addPerformanceTestResult('Parameter Validation Performance', duration < 50, `${duration.toFixed(2)}ms for ${validationCount} validations`);
+            }
+
+            async testStateTransitionPerformance() {
+                this.log('Testing state transition performance...');
+                
+                const eventBus = new EventBus();
+                const appState = new AppState(eventBus);
+                const transitionCount = 100;
+                
+                const startTime = performance.now();
+                
+                for (let i = 0; i < transitionCount; i++) {
+                    appState.transition('READY', {}, 'Performance test');
+                    appState.transition('INITIAL', {}, 'Performance test reset');
+                }
+                
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                const transitionsPerMs = (transitionCount * 2) / duration;
+                
+                this.log(`State Transition Performance: ${transitionCount * 2} transitions in ${duration.toFixed(2)}ms (${transitionsPerMs.toFixed(2)} transitions/ms)`);
+                
+                if (duration > 100) {
+                    this.log('Warning: State transitions may be slow');
+                }
+                
+                this.addPerformanceTestResult('State Transition Performance', duration < 100, `${duration.toFixed(2)}ms for ${transitionCount * 2} transitions`);
+            }
+
+            createMockSimulationResults() {
+                const duration = 60;
+                const timeStepDuration = 0.5;
+                const timeStepCount = Math.floor(duration / timeStepDuration);
+                
+                const timeSteps = [];
+                for (let i = 0; i < timeStepCount; i++) {
+                    timeSteps.push({
+                        time: i * timeStepDuration,
+                        step: i
+                    });
+                }
+                
+                const temperatureData = [];
+                for (let t = 0; t < timeStepCount; t++) {
+                    const timeStepData = [];
+                    for (let i = 0; i < 100; i++) {
+                        timeStepData.push(300 + Math.random() * 1500);
+                    }
+                    temperatureData.push(timeStepData);
+                }
+                
+                return {
+                    timeSteps: timeSteps,
+                    duration: duration,
+                    temperatureData: temperatureData,
+                    meshData: {
+                        vertices: [],
+                        faces: [],
+                        radius: 1.0,
+                        height: 2.0
+                    },
+                    metadata: {
+                        completionTime: new Date().toISOString(),
+                        isMockData: true
+                    }
+                };
+            }
+
+            displayTestResult(test) {
+                const categoryElement = this.getCategoryElement(test.category);
+                const resultElement = document.createElement('div');
+                resultElement.className = `test-result test-${test.status}`;
+                
+                let statusIcon = '';
+                switch (test.status) {
+                    case 'passed': statusIcon = '✓'; break;
+                    case 'failed': statusIcon = '✗'; break;
+                    case 'pending': statusIcon = '⏳'; break;
+                }
+                
+                resultElement.innerHTML = `
+                    ${statusIcon} ${test.name} 
+                    <span style="float: right;">${test.duration.toFixed(2)}ms</span>
+                    ${test.error ? `<br><small>Error: ${test.error.message}</small>` : ''}
+                `;
+                
+                categoryElement.appendChild(resultElement);
+            }
+
+            addWorkflowTestResult(name, passed, details) {
+                const categoryElement = document.getElementById('simulation-test-results');
+                const resultElement = document.createElement('div');
+                resultElement.className = `test-result test-${passed ? 'pass' : 'fail'}`;
+                resultElement.innerHTML = `${passed ? '✓' : '✗'} ${name}<br><small>${details}</small>`;
+                categoryElement.appendChild(resultElement);
+            }
+
+            addPerformanceTestResult(name, passed, details) {
+                const categoryElement = document.getElementById('performance-test-results');
+                const resultElement = document.createElement('div');
+                resultElement.className = `test-result test-${passed ? 'pass' : 'fail'}`;
+                resultElement.innerHTML = `${passed ? '✓' : '✗'} ${name}<br><small>${details}</small>`;
+                categoryElement.appendChild(resultElement);
+            }
+
+            getCategoryElement(category) {
+                const categoryMap = {
+                    'Component Initialization': 'init-test-results',
+                    'Parameter Validation': 'param-test-results',
+                    'State Transitions': 'state-test-results',
+                    'Simulation Workflow': 'simulation-test-results',
+                    'Visualization': 'visualization-test-results',
+                    'Animation': 'animation-test-results',
+                    'Error Handling': 'error-test-results',
+                    'Performance': 'performance-test-results'
+                };
+                
+                return document.getElementById(categoryMap[category] || 'test-log');
+            }
+
+            updateProgress() {
+                const completedTests = this.results.passed + this.results.failed;
+                const progress = (completedTests / this.results.total) * 100;
+                document.getElementById('test-progress').style.width = `${progress}%`;
+            }
+
+            updateSummary() {
+                document.getElementById('total-tests').textContent = `Total Tests: ${this.results.total}`;
+                document.getElementById('passed-tests').textContent = `Passed: ${this.results.passed}`;
+                document.getElementById('failed-tests').textContent = `Failed: ${this.results.failed}`;
+                document.getElementById('pending-tests').textContent = `Pending: ${this.results.pending}`;
+            }
+
+            generateReport() {
+                this.log('\n=== TEST SUITE REPORT ===');
+                this.log(`Total Tests: ${this.results.total}`);
+                this.log(`Passed: ${this.results.passed}`);
+                this.log(`Failed: ${this.results.failed}`);
+                this.log(`Success Rate: ${((this.results.passed / this.results.total) * 100).toFixed(1)}%`);
+                
+                if (this.results.failed > 0) {
+                    this.log('\nFailed Tests:');
+                    this.tests.filter(test => test.status === 'failed').forEach(test => {
+                        this.log(`- ${test.category}: ${test.name}`);
+                        if (test.error) {
+                            this.log(`  Error: ${test.error.message}`);
+                        }
+                    });
+                }
+                
+                this.log('\n=== END REPORT ===');
+            }
+
+            log(message) {
+                const timestamp = new Date().toLocaleTimeString();
+                const logMessage = `[${timestamp}] ${message}\n`;
+                this.logElement.textContent += logMessage;
+                this.logElement.scrollTop = this.logElement.scrollHeight;
+                console.log(message);
+            }
+
+            clearLog() {
+                this.logElement.textContent = '';
+            }
+
+            delay(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+        }
+
+        // Initialize test suite when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            window.testSuite = new IntegrationTestSuite();
+        });
+    </script>
+
+    <!-- Load the actual application components for testing -->
+    <script src="js/core/eventBus.js"></script>
+    <script src="js/core/errorHandler.js"></script>
+    <script src="js/core/loadingManager.js"></script>
+    <script src="js/core/keyboardHandler.js"></script>
+    <script src="js/core/state.js"></script>
+    <script src="js/models/parameters.js"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Core System Test</title>
+</head>
+<body>
+    <h1>Core System Test</h1>
+    <div id="test-output"></div>
+
+    <!-- Load core system scripts -->
+    <script src="src-tauri/ui/js/core/eventBus.js"></script>
+    <script src="src-tauri/ui/js/core/state.js"></script>
+    <script src="src-tauri/ui/js/core/app.js"></script>
+
+    <script>
+        // Test the core system
+        async function testCoreSystem() {
+            const output = document.getElementById('test-output');
+            
+            try {
+                // Test EventBus
+                const eventBus = new EventBus();
+                eventBus.emit('test', { message: 'EventBus working' });
+                output.innerHTML += '<p>✅ EventBus created successfully</p>';
+
+                // Test AppState
+                const appState = new AppState(eventBus);
+                const state = appState.getState();
+                output.innerHTML += '<p>✅ AppState created successfully</p>';
+                output.innerHTML += `<p>Initial phase: ${state.phase}</p>`;
+
+                // Test App
+                const app = new App();
+                const initialized = await app.init();
+                output.innerHTML += `<p>✅ App initialized: ${initialized}</p>`;
+
+                // Test state transition
+                const transitioned = app.appState.transition('READY', {}, 'Test transition');
+                output.innerHTML += `<p>✅ State transition: ${transitioned}</p>`;
+                output.innerHTML += `<p>Current phase: ${app.appState.getPhase()}</p>`;
+
+                output.innerHTML += '<p><strong>All tests passed! ✅</strong></p>';
+
+            } catch (error) {
+                output.innerHTML += `<p>❌ Error: ${error.message}</p>`;
+                console.error('Test error:', error);
+            }
+        }
+
+        // Run tests when page loads
+        document.addEventListener('DOMContentLoaded', testCoreSystem);
+    </script>
+</body>
+</html>

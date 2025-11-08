@@ -131,3 +131,14 @@ pub fn update_geometry(
         geometry: geometry.clone(),
     })
 }
+/// Log a message from the frontend to the Rust terminal
+#[tauri::command]
+pub fn log_frontend_message(level: String, component: String, message: String) {
+    match level.as_str() {
+        "error" => log::error!("🌐 [FRONTEND-{}] {}", component, message),
+        "warn" => log::warn!("🌐 [FRONTEND-{}] {}", component, message),
+        "info" => log::info!("🌐 [FRONTEND-{}] {}", component, message),
+        "debug" => log::debug!("🌐 [FRONTEND-{}] {}", component, message),
+        _ => log::info!("🌐 [FRONTEND-{}] {}", component, message),
+    }
+}
