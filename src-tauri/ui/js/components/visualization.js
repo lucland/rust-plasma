@@ -331,26 +331,27 @@ class VisualizationPanel {
      * @private
      */
     updateTorchPosition(torchParams) {
-        if (!this.torchMesh || !torchParams) return;
+        if (!this.torchMesh) return;
         
-        const position = torchParams.position || { r: 0, z: 1 };
+        // Get furnace dimensions
         const furnaceHeight = this.furnaceOutline ? this.furnaceOutline.geometry.parameters.height : 2.0;
         
-        // Convert cylindrical coordinates (r, z) to Cartesian (x, y, z)
-        // r is radial distance from center axis
-        // z is height along cylinder axis
-        const r = position.r || 0;
-        const z = position.z || furnaceHeight / 2;
+        // Always place torch at bottom center of cylinder
+        // Y-axis is the cylinder axis in Three.js, with origin at center
+        // Bottom of cylinder is at y = 0 (since cylinder position.y = height/2)
+        const torchY = 0.05; // Slightly above the bottom to be visible
         
-        // Place torch at (r, 0, 0) in cylindrical coords = (r, z, 0) in Cartesian
-        // Y-axis is the cylinder axis in Three.js
-        this.torchMesh.position.set(r, z, 0);
+        this.torchMesh.position.set(0, torchY, 0);
         
         if (this.torchLight) {
             this.torchLight.position.copy(this.torchMesh.position);
         }
         
-        console.log('[VisualizationPanel] Torch position updated:', { r, z, cartesian: this.torchMesh.position });
+        console.log('[VisualizationPanel] Torch position updated to bottom center:', { 
+            y: torchY, 
+            furnaceHeight, 
+            cartesian: this.torchMesh.position 
+        });
     }
 
     /**
@@ -546,11 +547,20 @@ class VisualizationPanel {
     }
 
     /**
-     * Load simulation data and create heatmap visualization
+     * Load simulation data and create heatmap visualization with real backend data
+     * @param {Object} simulationResults - Results from backend containing temperature data
      */
     loadSimulationData(simulationResults) {
         try {
-            console.log('[VisualizationPanel] Loading simulation data...');
+            console.log('[VisualizationPanel] Loading real backend simulation data...');
+            console.log('[VisualizationPanel] Results structure:', {
+                hasTimeSteps: !!simulationResults.timeSteps,
+                timeStepsCount: simulationResults.timeSteps?.length,
+                hasTemperatureData: !!simulationResults.temperatureData,
+                temperatureDataType: Array.isArray(simulationResults.temperatureData) ? 'array' : typeof simulationResults.temperatureData,
+                hasMetadata: !!simulationResults.metadata,
+                duration: simulationResults.duration
+            });
             
             // Ensure visualization is initialized before loading data
             if (!this.isInitialized) {
@@ -558,12 +568,28 @@ class VisualizationPanel {
                 throw new Error('Visualization not initialized');
             }
             
+            // Validate that we have temperature data from backend
+            if (!simulationResults.temperatureData || !Array.isArray(simulationResults.temperatureData)) {
+                console.error('[VisualizationPanel] Invalid or missing temperature data from backend');
+                throw new Error('No valid temperature data received from backend');
+            }
+            
+            // Store simulation data
             this.simulationData = simulationResults;
-            this.totalTimeSteps = simulationResults.timeSteps ? simulationResults.timeSteps.length : 0;
+            this.totalTimeSteps = simulationResults.timeSteps ? simulationResults.timeSteps.length : 1;
             this.currentTimeStep = 0;
             
-            // Update temperature range from data
+            console.log('[VisualizationPanel] Simulation data stored:', {
+                totalTimeSteps: this.totalTimeSteps,
+                temperatureGridSize: `${simulationResults.temperatureData.length}x${simulationResults.temperatureData[0]?.length || 0}`
+            });
+            
+            // Update temperature range from backend data
             this.updateTemperatureRange();
+            console.log('[VisualizationPanel] Temperature range updated:', {
+                min: this.minTemperature,
+                max: this.maxTemperature
+            });
             
             // Update furnace geometry and torch position from simulation parameters
             if (simulationResults.metadata && simulationResults.metadata.parameters) {
@@ -572,39 +598,43 @@ class VisualizationPanel {
                 // Update furnace geometry if we have furnace parameters
                 if (params.furnace) {
                     this.updateFurnaceGeometryFromParams(params.furnace);
+                    console.log('[VisualizationPanel] Furnace geometry updated from parameters');
                 }
                 
                 // Update torch position
                 if (params.torch) {
                     this.updateTorchPosition(params.torch);
+                    console.log('[VisualizationPanel] Torch position updated from parameters');
                 }
             }
             
-            // Create heatmap mesh
+            // Create heatmap mesh with particle system
             this.createHeatmapMesh();
+            console.log('[VisualizationPanel] Heatmap mesh created');
             
-            // Set initial time step and force color update
+            // Set initial time step and apply backend temperature data
             this.setTimeStep(0);
             
-            // Force an immediate color update to ensure particles are visible
+            // Force an immediate color update with real backend data
             if (this.heatmapGroup && this.particlePositions) {
                 this.updateHeatmapColors();
-                console.log('[VisualizationPanel] Initial heatmap colors applied');
+                console.log('[VisualizationPanel] Initial heatmap colors applied from backend data');
             }
             
-            console.log('[VisualizationPanel] Simulation data loaded successfully');
+            console.log('[VisualizationPanel] ✅ Real backend simulation data loaded successfully');
             
             // Prepare animation data if we have multiple time steps
             let animationReady = false;
             if (this.totalTimeSteps > 1) {
                 this.prepareForAnimation(simulationResults);
                 animationReady = true;
+                console.log('[VisualizationPanel] Animation prepared for', this.totalTimeSteps, 'time steps');
             }
             
             // Emit visualization loaded event with complete data for animation coordination
             this.eventBus.emit('visualization:loaded', {
                 timeSteps: this.totalTimeSteps,
-                duration: simulationResults.duration || (this.totalTimeSteps * 0.5), // Default 0.5s per step
+                duration: simulationResults.duration || (this.totalTimeSteps * 0.5),
                 temperatureRange: {
                     min: this.minTemperature,
                     max: this.maxTemperature
@@ -614,11 +644,13 @@ class VisualizationPanel {
                     timeSteps: simulationResults.timeSteps,
                     duration: simulationResults.duration,
                     metadata: simulationResults.metadata
-                }
+                },
+                dataSource: 'backend' // Indicate this is real backend data
             });
             
         } catch (error) {
-            console.error('[VisualizationPanel] Failed to load simulation data:', error);
+            console.error('[VisualizationPanel] ❌ Failed to load simulation data:', error);
+            console.error('[VisualizationPanel] Error stack:', error.stack);
             this.eventBus.emit('visualization:error', {
                 type: 'data_loading',
                 message: error.message,
@@ -662,44 +694,90 @@ class VisualizationPanel {
 
     /**
      * Pre-process temperature data for efficient animation
+     * Optimizes backend data structure for fast time step switching
      * @private
      */
     preprocessTemperatureData() {
         if (!this.simulationData || !this.simulationData.temperatureData) {
+            console.warn('[VisualizationPanel] No temperature data to preprocess');
             return;
         }
         
-        // For now, we'll use the existing mock data generation
-        // In a real implementation, this would optimize the data structure
-        // for fast time step switching during animation
+        // Backend data is already in an efficient format (2D/3D arrays)
+        // Future optimization: could cache interpolated values or create texture maps
         
-        console.log('[VisualizationPanel] Temperature data preprocessed for animation');
+        console.log('[VisualizationPanel] Backend temperature data ready for animation:', {
+            dataType: Array.isArray(this.simulationData.temperatureData[0]?.[0]) ? '3D array' : '2D array',
+            gridSize: `${this.simulationData.temperatureData.length}x${this.simulationData.temperatureData[0]?.length || 0}`
+        });
     }
 
     /**
      * Update temperature range from simulation data
+     * Uses backend-provided temperature range or calculates from data
      * @private
      */
     updateTemperatureRange() {
-        if (!this.simulationData || !this.simulationData.temperatureData) {
+        if (!this.simulationData) {
+            console.warn('[VisualizationPanel] No simulation data for temperature range');
+            return;
+        }
+        
+        // First, try to use temperature range from metadata (most accurate)
+        if (this.simulationData.metadata && this.simulationData.metadata.temperatureRange) {
+            this.minTemperature = this.simulationData.metadata.temperatureRange.min;
+            this.maxTemperature = this.simulationData.metadata.temperatureRange.max;
+            console.log('[VisualizationPanel] Temperature range from metadata:', { 
+                min: this.minTemperature, 
+                max: this.maxTemperature 
+            });
+            return;
+        }
+        
+        // Fallback: calculate from temperature data
+        if (!this.simulationData.temperatureData || !Array.isArray(this.simulationData.temperatureData)) {
+            console.warn('[VisualizationPanel] No temperature data available for range calculation');
             return;
         }
         
         let min = Infinity;
         let max = -Infinity;
         
-        // Find min/max across all time steps
-        this.simulationData.temperatureData.forEach(timeStepData => {
-            timeStepData.forEach(temp => {
-                min = Math.min(min, temp);
-                max = Math.max(max, temp);
+        // Handle both 2D [row][col] and 3D [timeStep][row][col] arrays
+        const data = this.simulationData.temperatureData;
+        
+        const processGrid = (grid) => {
+            if (!Array.isArray(grid)) return;
+            
+            grid.forEach(row => {
+                if (Array.isArray(row)) {
+                    row.forEach(temp => {
+                        if (typeof temp === 'number' && !isNaN(temp)) {
+                            min = Math.min(min, temp);
+                            max = Math.max(max, temp);
+                        }
+                    });
+                }
             });
-        });
+        };
         
-        this.minTemperature = min;
-        this.maxTemperature = max;
+        // Check if this is a 3D array (multiple time steps)
+        if (Array.isArray(data[0]) && Array.isArray(data[0][0])) {
+            // 3D array: [timeStep][row][col]
+            data.forEach(timeStepGrid => processGrid(timeStepGrid));
+        } else {
+            // 2D array: [row][col]
+            processGrid(data);
+        }
         
-        console.log('[VisualizationPanel] Temperature range:', { min, max });
+        // Only update if we found valid values
+        if (min !== Infinity && max !== -Infinity) {
+            this.minTemperature = min;
+            this.maxTemperature = max;
+            console.log('[VisualizationPanel] Temperature range calculated from data:', { min, max });
+        } else {
+            console.warn('[VisualizationPanel] Could not calculate temperature range, using defaults');
+        }
     }
 
     /**
@@ -752,42 +830,66 @@ class VisualizationPanel {
         }
         
         // Create a 3D grid of particles throughout the cylinder volume
-        const gridResolution = 18; // Points per dimension (balanced for quality and performance)
+        // Use a more even distribution by sampling points in a grid pattern
+        // Get mesh resolution from simulation parameters or use default
+        const meshResolution = this.simulationData?.metadata?.parameters?.advanced?.meshResolution || 'medium';
+        
+        // Map mesh resolution to grid density
+        const resolutionMap = {
+            'coarse': 12,   // ~5,500 particles
+            'medium': 18,   // ~12,000 particles  
+            'fine': 24      // ~29,000 particles
+        };
+        
+        const gridResolution = resolutionMap[meshResolution] || 18;
         const particles = [];
         const colors = [];
         
         // Store particle positions for temperature mapping
         this.particlePositions = [];
         
-        // Generate points in cylindrical coordinates throughout the volume
-        const radialSteps = Math.floor(gridResolution * 0.7); // More radial coverage
-        const angularSteps = gridResolution * 3; // More angular resolution for better coverage
-        const heightSteps = gridResolution;
+        // Generate points using a more uniform distribution with jitter to fill gaps
+        // Create a cubic grid and filter points that fall within the cylinder
+        const xSteps = gridResolution;
+        const ySteps = gridResolution;
+        const zSteps = gridResolution;
         
-        for (let rIndex = 0; rIndex <= radialSteps; rIndex++) {
-            const r = (rIndex / radialSteps) * furnaceRadius;
-            
-            // For center point, only create one particle
-            const thetaSteps = (rIndex === 0) ? 1 : angularSteps;
-            
-            for (let thetaIndex = 0; thetaIndex < thetaSteps; thetaIndex++) {
-                const theta = (thetaIndex / thetaSteps) * Math.PI * 2;
-                
-                for (let yIndex = 0; yIndex <= heightSteps; yIndex++) {
-                    const y = (yIndex / heightSteps) * furnaceHeight - (furnaceHeight / 2);
+        // Calculate step sizes
+        const xStep = (2 * furnaceRadius) / xSteps;
+        const yStep = furnaceHeight / ySteps;
+        const zStep = (2 * furnaceRadius) / zSteps;
+        
+        // Add significant jitter to break up grid patterns and fill gaps
+        const jitterAmount = 0.45; // Increased jitter to fill gaps better
+        
+        for (let xi = 0; xi < xSteps; xi++) {
+            for (let zi = 0; zi < zSteps; zi++) {
+                for (let yi = 0; yi < ySteps; yi++) {
+                    // Base position with half-step offset to center particles in cells
+                    let x = (xi + 0.5) * xStep - furnaceRadius;
+                    let z = (zi + 0.5) * zStep - furnaceRadius;
+                    let y = (yi + 0.5) * yStep - (furnaceHeight / 2);
                     
-                    // Convert cylindrical to Cartesian coordinates
-                    const x = r * Math.cos(theta);
-                    const z = r * Math.sin(theta);
+                    // Add jitter to break up grid patterns
+                    x += (Math.random() - 0.5) * xStep * jitterAmount;
+                    z += (Math.random() - 0.5) * zStep * jitterAmount;
+                    y += (Math.random() - 0.5) * yStep * jitterAmount;
                     
-                    // Add particle position
-                    particles.push(x, y, z);
-                    
-                    // Store position for temperature mapping
-                    this.particlePositions.push({ x, y, z, r, theta });
-                    
-                    // Default color (will be updated with temperature data)
-                    colors.push(0.3, 0.3, 0.8); // Blue default
+                    // Check if point is within cylinder radius (with small margin)
+                    const r = Math.sqrt(x * x + z * z);
+                    if (r <= furnaceRadius * 0.98) { // Slightly inside to avoid edge artifacts
+                        // Add particle position
+                        particles.push(x, y, z);
+                        
+                        // Calculate cylindrical coordinates for temperature mapping
+                        const theta = Math.atan2(z, x);
+                        
+                        // Store position for temperature mapping
+                        this.particlePositions.push({ x, y, z, r, theta });
+                        
+                        // Default color (will be updated with temperature data)
+                        colors.push(0.3, 0.3, 0.8); // Blue default
+                    }
                 }
             }
         }
@@ -818,39 +920,87 @@ class VisualizationPanel {
         console.log(`[VisualizationPanel] Created 3D volumetric heatmap with ${particles.length / 3} particles`);
         console.log('[VisualizationPanel] Furnace dimensions:', { height: furnaceHeight, radius: furnaceRadius });
         console.log('[VisualizationPanel] Particle positions stored:', this.particlePositions.length);
-        console.log('[VisualizationPanel] Grid resolution:', { radialSteps, angularSteps, heightSteps });
+        console.log('[VisualizationPanel] Grid resolution:', { xSteps, ySteps, zSteps });
     }
 
 
     /**
-     * Set current time step and update visualization
+     * Set current time step and update visualization with real backend data
+     * @param {number} timeStep - The time step index to display
      */
     setTimeStep(timeStep) {
         if (!this.simulationData || !this.heatmapGroup) {
+            console.warn('[VisualizationPanel] Cannot set time step - missing data:', {
+                hasSimulationData: !!this.simulationData,
+                hasHeatmapGroup: !!this.heatmapGroup
+            });
             return;
         }
         
-        this.currentTimeStep = Math.max(0, Math.min(timeStep, this.totalTimeSteps - 1));
+        // Clamp time step to valid range
+        const clampedTimeStep = Math.max(0, Math.min(timeStep, this.totalTimeSteps - 1));
         
-        // Update heatmap colors for current time step
-        this.updateHeatmapColors();
+        if (clampedTimeStep !== this.currentTimeStep) {
+            this.currentTimeStep = clampedTimeStep;
+            
+            // Update heatmap colors for current time step using backend data
+            this.updateHeatmapColors();
+            
+            // Get actual simulation time for this step
+            const actualTime = this.getActualTimeForStep(clampedTimeStep);
+            
+            console.log('[VisualizationPanel] Time step updated:', {
+                step: this.currentTimeStep,
+                totalSteps: this.totalTimeSteps,
+                actualTime: actualTime ? actualTime.toFixed(2) + 's' : 'N/A'
+            });
+            
+            // Emit event with both step index and actual time
+            this.eventBus.emit('visualization:timeStepChanged', {
+                timeStep: this.currentTimeStep,
+                totalTimeSteps: this.totalTimeSteps,
+                actualTime: actualTime
+            });
+        }
+    }
+    
+    /**
+     * Get the actual simulation time (in seconds) for a given time step index
+     * @private
+     * @param {number} stepIndex - The time step index
+     * @returns {number|null} The actual time in seconds, or null if not available
+     */
+    getActualTimeForStep(stepIndex) {
+        if (!this.simulationData || !this.simulationData.timeSteps) {
+            return null;
+        }
         
-        console.log('[VisualizationPanel] Time step set to:', this.currentTimeStep);
+        // Check if we have time step data
+        if (Array.isArray(this.simulationData.timeSteps) && this.simulationData.timeSteps.length > stepIndex) {
+            const timeStepData = this.simulationData.timeSteps[stepIndex];
+            return timeStepData.time || null;
+        }
         
-        this.eventBus.emit('visualization:timeStepChanged', {
-            timeStep: this.currentTimeStep,
-            totalTimeSteps: this.totalTimeSteps
-        });
+        // Fallback: calculate based on duration and total steps
+        if (this.simulationData.duration && this.totalTimeSteps > 0) {
+            return (stepIndex / (this.totalTimeSteps - 1)) * this.simulationData.duration;
+        }
+        
+        return null;
     }
 
     /**
-     * Update heatmap colors based on current time step
+     * Update heatmap colors based on current time step using real backend data
      * Updates all particles to show 3D heat distribution throughout the volume
      * @private
      */
     updateHeatmapColors() {
         if (!this.heatmapGroup || !this.particlePositions || !this.simulationData) {
-            console.warn('[VisualizationPanel] Cannot update heatmap colors - missing data');
+            console.warn('[VisualizationPanel] Cannot update heatmap colors - missing data:', {
+                hasHeatmapGroup: !!this.heatmapGroup,
+                hasParticlePositions: !!this.particlePositions,
+                hasSimulationData: !!this.simulationData
+            });
             return;
         }
         
@@ -862,8 +1012,13 @@ class VisualizationPanel {
             return;
         }
         
-        // Get temperature data for current time step
+        // Get temperature data for current time step from backend
         const temperatureData = this.getTemperatureDataForTimeStep(this.currentTimeStep);
+        
+        if (!temperatureData) {
+            console.error('[VisualizationPanel] No temperature data available for time step:', this.currentTimeStep);
+            return;
+        }
         
         // Get furnace dimensions
         let furnaceHeight, furnaceRadius;
@@ -879,18 +1034,37 @@ class VisualizationPanel {
             furnaceRadius = params?.furnace?.radius ?? 1.0;
         }
         
-        // Update each particle color based on its position
+        console.log('[VisualizationPanel] Updating colors with backend data:', {
+            timeStep: this.currentTimeStep,
+            gridSize: Array.isArray(temperatureData) ? `${temperatureData.length}x${temperatureData[0]?.length || 0}` : 'invalid',
+            particleCount: this.particlePositions.length,
+            furnaceDimensions: { height: furnaceHeight, radius: furnaceRadius }
+        });
+        
+        // Track temperature statistics for validation
+        let minTempSeen = Infinity;
+        let maxTempSeen = -Infinity;
+        let validTemperatureCount = 0;
+        
+        // Update each particle color based on its position and backend temperature data
         this.particlePositions.forEach((pos, index) => {
             // Normalize position coordinates
             const normalizedR = pos.r / furnaceRadius;
             const normalizedY = (pos.y + furnaceHeight / 2) / furnaceHeight;
             
-            // Get temperature for this 3D position
+            // Get temperature for this 3D position from backend data
             const temperature = this.getTemperatureAt3DPosition(
                 normalizedR,
                 normalizedY,
                 temperatureData
             );
+            
+            // Track statistics
+            if (typeof temperature === 'number' && !isNaN(temperature)) {
+                minTempSeen = Math.min(minTempSeen, temperature);
+                maxTempSeen = Math.max(maxTempSeen, temperature);
+                validTemperatureCount++;
+            }
             
             // Convert temperature to color
             const color = this.temperatureToColor(temperature);
@@ -902,57 +1076,70 @@ class VisualizationPanel {
         // Mark colors as needing update
         colors.needsUpdate = true;
         
-        // Log sample temperature data for debugging
-        if (this.particlePositions.length > 0) {
-            const sampleTemp = this.getTemperatureAt3DPosition(0, 0.5, temperatureData);
-            console.log('[VisualizationPanel] Sample temperature at center:', sampleTemp.toFixed(1), 'K');
-        }
+        console.log('[VisualizationPanel] Heatmap colors updated with real backend data:', {
+            timeStep: this.currentTimeStep,
+            particlesUpdated: validTemperatureCount,
+            temperatureRange: {
+                min: minTempSeen.toFixed(1),
+                max: maxTempSeen.toFixed(1)
+            }
+        });
         
-        console.log('[VisualizationPanel] 3D volumetric heatmap colors updated for time step:', this.currentTimeStep);
+        // Log sample temperatures for validation
+        if (this.particlePositions.length > 0) {
+            const centerTemp = this.getTemperatureAt3DPosition(0, 0.5, temperatureData);
+            const edgeTemp = this.getTemperatureAt3DPosition(1, 0.5, temperatureData);
+            console.log('[VisualizationPanel] Sample temperatures:', {
+                center: centerTemp.toFixed(1) + 'K',
+                edge: edgeTemp.toFixed(1) + 'K'
+            });
+        }
     }
     
     /**
-     * Get temperature at a 3D position in the cylinder
+     * Get temperature at a 3D position in the cylinder using real backend data
+     * Maps 3D particle position to 2D grid data from backend
      * @private
      */
     getTemperatureAt3DPosition(normalizedR, normalizedZ, temperatureData) {
-        if (!temperatureData) {
+        if (!temperatureData || !Array.isArray(temperatureData)) {
+            console.warn('[VisualizationPanel] No valid temperature data for position lookup');
             return this.minTemperature;
         }
         
-        // Use furnaceGeometry if available, otherwise use furnaceOutline.geometry
-        // Get furnace dimensions
-        let furnaceHeight, furnaceRadius;
-        const furnaceGeom = this.furnaceGeometry || (this.furnaceOutline ? this.furnaceOutline.geometry : null);
+        // Backend returns temperature data as a 2D grid [row][col]
+        // We need to map cylindrical coordinates (r, z) to grid indices
         
-        if (furnaceGeom && furnaceGeom.parameters) {
-            furnaceHeight = furnaceGeom.parameters.height;
-            furnaceRadius = furnaceGeom.parameters.radiusTop;
-        } else {
-            // Fallback to simulation parameters
-            const params = this.simulationData?.metadata?.parameters;
-            furnaceHeight = params?.furnace?.height ?? 2.0;
-            furnaceRadius = params?.furnace?.radius ?? 1.0;
+        // Clamp normalized coordinates to valid range [0, 1]
+        const clampedR = Math.max(0, Math.min(1, normalizedR));
+        const clampedZ = Math.max(0, Math.min(1, normalizedZ));
+        
+        // Get grid dimensions from the data
+        const numRows = temperatureData.length; // Z direction (height)
+        const numCols = temperatureData[0] ? temperatureData[0].length : 0; // R direction (radius)
+        
+        if (numRows === 0 || numCols === 0) {
+            console.warn('[VisualizationPanel] Empty temperature grid');
+            return this.minTemperature;
         }
         
-        // Get torch position for heat source calculation
-        const torchR = this.torchMesh ? (this.torchMesh.position.x / furnaceRadius) : 0;
-        const torchZ = this.torchMesh ? ((this.torchMesh.position.y + furnaceHeight / 2) / furnaceHeight) : 0.5;
+        // Map normalized coordinates to grid indices
+        // Z (height) maps to rows: 0 (bottom) -> 0, 1 (top) -> numRows-1
+        // R (radius) maps to cols: 0 (center) -> 0, 1 (edge) -> numCols-1
+        const rowIndex = Math.floor(clampedZ * (numRows - 1));
+        const colIndex = Math.floor(clampedR * (numCols - 1));
         
-        // Calculate distance from torch position in 3D
-        const dr = normalizedR - torchR;
-        const dz = normalizedZ - torchZ;
-        const distance3D = Math.sqrt(dr * dr + dz * dz);
+        // Clamp indices to valid range
+        const safeRow = Math.max(0, Math.min(numRows - 1, rowIndex));
+        const safeCol = Math.max(0, Math.min(numCols - 1, colIndex));
         
-        // Calculate heat spread based on time progression
-        const timeProgress = this.currentTimeStep / Math.max(1, this.totalTimeSteps - 1);
-        const heatSpread = 0.2 + timeProgress * 0.6; // Heat spreads over time
+        // Get temperature from grid
+        const temperature = temperatureData[safeRow][safeCol];
         
-        // Calculate temperature based on distance from heat source
-        let temperature = this.minTemperature;
-        if (distance3D < heatSpread) {
-            const intensity = 1 - (distance3D / heatSpread);
-            temperature = this.minTemperature + intensity * (this.maxTemperature - this.minTemperature);
+        // Validate temperature value
+        if (typeof temperature !== 'number' || isNaN(temperature)) {
+            console.warn('[VisualizationPanel] Invalid temperature value at grid position:', { safeRow, safeCol, temperature });
+            return this.minTemperature;
         }
         
         return temperature;
@@ -960,46 +1147,35 @@ class VisualizationPanel {
 
     /**
      * Get temperature data for a specific time step
+     * Uses real backend data instead of mock generation
      * @private
      */
     getTemperatureDataForTimeStep(timeStep) {
         if (!this.simulationData || !this.simulationData.temperatureData) {
+            console.warn('[VisualizationPanel] No temperature data available');
             return null;
         }
         
-        // For now, generate mock temperature data
-        // In real implementation, this would come from simulation results
-        const mockData = this.generateMockTemperatureData();
-        return mockData;
-    }
-
-    /**
-     * Generate mock temperature data for demonstration
-     * @private
-     */
-    generateMockTemperatureData() {
-        const data = [];
-        const time = this.currentTimeStep / Math.max(1, this.totalTimeSteps - 1);
+        // Backend returns temperature data as a 2D array (grid)
+        // For multiple time steps, it would be a 3D array [timeStep][row][col]
+        // For now, backend returns a single 2D grid
+        const temperatureData = this.simulationData.temperatureData;
         
-        // Create a temperature distribution that changes over time
-        for (let i = 0; i < 100; i++) {
-            const r = (i % 10) / 10; // Radial position (0-1)
-            const z = Math.floor(i / 10) / 10; // Axial position (0-1)
-            
-            // Create a heat source at the center that spreads over time
-            const distanceFromCenter = Math.sqrt(r * r + (z - 0.5) * (z - 0.5));
-            const heatSpread = 0.3 + time * 0.4; // Heat spreads over time
-            
-            let temperature = this.minTemperature;
-            if (distanceFromCenter < heatSpread) {
-                const intensity = 1 - (distanceFromCenter / heatSpread);
-                temperature = this.minTemperature + intensity * (this.maxTemperature - this.minTemperature);
-            }
-            
-            data.push(temperature);
+        if (!Array.isArray(temperatureData)) {
+            console.error('[VisualizationPanel] Temperature data is not an array:', typeof temperatureData);
+            return null;
         }
         
-        return data;
+        // If we have multiple time steps, select the appropriate one
+        // Otherwise, use the single grid for all time steps
+        if (Array.isArray(temperatureData[0]) && Array.isArray(temperatureData[0][0])) {
+            // 3D array: [timeStep][row][col]
+            const clampedTimeStep = Math.min(timeStep, temperatureData.length - 1);
+            return temperatureData[clampedTimeStep];
+        } else {
+            // 2D array: [row][col] - single time step
+            return temperatureData;
+        }
     }
 
     /**
@@ -1059,34 +1235,51 @@ class VisualizationPanel {
     }
 
     /**
-     * Get temperature at a specific 3D point
+     * Get temperature at a specific 3D point using real backend data
+     * Used for hover interactions and point queries
      * @private
      */
     getTemperatureAtPoint(point) {
         if (!this.simulationData) {
-            return this.minTemperature + Math.random() * (this.maxTemperature - this.minTemperature);
+            console.warn('[VisualizationPanel] No simulation data for point temperature lookup');
+            return this.minTemperature;
         }
         
         // Convert 3D point to cylindrical coordinates
         const r = Math.sqrt(point.x ** 2 + point.z ** 2);
         const z = point.y;
         
-        // Get temperature data for current time step
+        // Get furnace dimensions
+        let furnaceHeight, furnaceRadius;
+        const furnaceGeom = this.furnaceGeometry || (this.furnaceOutline ? this.furnaceOutline.geometry : null);
+        
+        if (furnaceGeom && furnaceGeom.parameters) {
+            furnaceHeight = furnaceGeom.parameters.height;
+            furnaceRadius = furnaceGeom.parameters.radiusTop;
+        } else {
+            // Fallback to simulation parameters
+            const params = this.simulationData?.metadata?.parameters;
+            furnaceHeight = params?.furnace?.height ?? 2.0;
+            furnaceRadius = params?.furnace?.radius ?? 1.0;
+        }
+        
+        // Normalize coordinates
+        // Note: Three.js cylinder has origin at center, so y ranges from -height/2 to +height/2
+        const normalizedR = Math.min(1, Math.max(0, r / furnaceRadius));
+        const normalizedZ = Math.min(1, Math.max(0, (z + furnaceHeight / 2) / furnaceHeight));
+        
+        // Get temperature data for current time step from backend
         const temperatureData = this.getTemperatureDataForTimeStep(this.currentTimeStep);
         
         if (!temperatureData) {
+            console.warn('[VisualizationPanel] No temperature data for current time step');
             return this.minTemperature;
         }
         
-        // Simple interpolation - in real implementation, this would be more sophisticated
-        const normalizedR = Math.min(1, r / 1.0); // Assuming radius of 1.0
-        const normalizedZ = Math.min(1, Math.max(0, z / 2.0)); // Assuming height of 2.0
+        // Use the same mapping function as particle coloring for consistency
+        const temperature = this.getTemperatureAt3DPosition(normalizedR, normalizedZ, temperatureData);
         
-        const rIndex = Math.floor(normalizedR * 9); // 10 radial segments
-        const zIndex = Math.floor(normalizedZ * 9); // 10 axial segments
-        const dataIndex = zIndex * 10 + rIndex;
-        
-        return temperatureData[Math.min(dataIndex, temperatureData.length - 1)];
+        return temperature;
     }
 
     /**
@@ -1187,6 +1380,15 @@ class VisualizationPanel {
         
         // Update stored geometry
         this.furnaceGeometry = geometry.clone();
+        
+        // Update torch position to stay at bottom center
+        if (this.torchMesh) {
+            // Keep torch at bottom center (y = 0.05, slightly above bottom)
+            this.torchMesh.position.set(0, 0.05, 0);
+            if (this.torchLight) {
+                this.torchLight.position.copy(this.torchMesh.position);
+            }
+        }
         
         console.log('[VisualizationPanel] Furnace geometry updated:', { height, radius });
     }

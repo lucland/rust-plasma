@@ -71,7 +71,11 @@ class ErrorHandler {
                 timeout: 'The simulation took too long to complete and was stopped.',
                 cancelled: 'The simulation was cancelled by the user.',
                 backend_error: 'There was an error in the simulation engine: {details}',
-                memory_error: 'The simulation ran out of memory. Try reducing the mesh resolution or simulation duration.'
+                memory_error: 'The simulation ran out of memory. Try reducing the mesh resolution or simulation duration.',
+                connection_failed: 'Cannot connect to the simulation backend. The application may not be running properly.',
+                backend_unavailable: 'The simulation backend is not available. Please restart the application.',
+                results_failed: 'Failed to retrieve simulation results. The data may not be available.',
+                start_failed: 'Failed to start the simulation. Please check your parameters and try again.'
             },
             rendering: {
                 webgl_error: 'Your browser or graphics card does not support the required 3D features.',
@@ -106,7 +110,9 @@ class ErrorHandler {
             simulation: [
                 'Verify your parameter values are realistic',
                 'Try reducing the simulation duration or time step',
-                'Check if you have sufficient system resources'
+                'Check if you have sufficient system resources',
+                'Try restarting the application if the backend is unavailable',
+                'Check the application logs for more details'
             ],
             rendering: [
                 'Try refreshing the page',
@@ -249,10 +255,11 @@ class ErrorHandler {
         // Message-based categorization
         const message = this.extractErrorMessage(error).toLowerCase();
         if (message.includes('validation') || message.includes('invalid')) return 'validation';
-        if (message.includes('network') || message.includes('connection')) return 'network';
+        if (message.includes('network') || message.includes('connection') || message.includes('backend') || message.includes('tauri')) return 'network';
         if (message.includes('webgl') || message.includes('rendering')) return 'rendering';
-        if (message.includes('simulation') || message.includes('solver')) return 'simulation';
+        if (message.includes('simulation') || message.includes('solver') || message.includes('timeout') || message.includes('memory')) return 'simulation';
         if (message.includes('state') || message.includes('transition')) return 'state';
+        if (message.includes('unavailable') || message.includes('not available')) return 'network';
 
         return 'unknown';
     }
@@ -310,7 +317,7 @@ class ErrorHandler {
             }
             
             if (type === 'simulation') {
-                if (lowerMessage.includes('timeout')) {
+                if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
                     return templates.timeout;
                 }
                 if (lowerMessage.includes('cancel')) {
@@ -319,8 +326,22 @@ class ErrorHandler {
                 if (lowerMessage.includes('memory')) {
                     return templates.memory_error;
                 }
-                if (details.backendError) {
-                    return this.interpolateTemplate(templates.backend_error, { details: details.backendError });
+                if (lowerMessage.includes('connection') || lowerMessage.includes('connect')) {
+                    return templates.connection_failed;
+                }
+                if (lowerMessage.includes('unavailable') || lowerMessage.includes('not available')) {
+                    return templates.backend_unavailable;
+                }
+                if (lowerMessage.includes('results') || lowerMessage.includes('retrieve')) {
+                    return templates.results_failed;
+                }
+                if (lowerMessage.includes('start') || lowerMessage.includes('begin')) {
+                    return templates.start_failed;
+                }
+                if (details.backendError || details.originalError) {
+                    return this.interpolateTemplate(templates.backend_error, { 
+                        details: details.backendError || details.originalError 
+                    });
                 }
                 return templates.execution_failed;
             }

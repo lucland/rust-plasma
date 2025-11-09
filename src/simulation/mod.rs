@@ -41,6 +41,12 @@ pub mod visualization;
 #[cfg(test)]
 mod solver_integration_test;
 
+#[cfg(test)]
+mod absolute_distance_test;
+
+#[cfg(test)]
+mod material_diffusion_test;
+
 // Re-export key types for convenience
 pub use mesh::{CylindricalMesh, MeshPreset};
 pub use physics::{PlasmaTorch, PlasmaPhysics, BoundaryConditions};

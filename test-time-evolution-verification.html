@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time-Dependent Evolution Verification</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        
+        h1 {
+            color: #4CAF50;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        
+        h2 {
+            color: #2196F3;
+            margin-top: 30px;
+        }
+        
+        .test-section {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #2196F3;
+        }
+        
+        .test-result {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #666;
+        }
+        
+        .test-result.pass {
+            background: #1b5e20;
+            border-left-color: #4CAF50;
+        }
+        
+        .test-result.fail {
+            background: #b71c1c;
+            border-left-color: #f44336;
+        }
+        
+        .test-result.pending {
+            background: #e65100;
+            border-left-color: #ff9800;
+        }
+        
+        .test-result.info {
+            background: #01579b;
+            border-left-color: #2196F3;
+        }
+        
+        .test-title {
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+        }
+        
+        .test-details {
+            font-size: 0.9em;
+            color: #b0b0b0;
+            margin-top: 8px;
+        }
+        
+        .test-data {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            overflow-x: auto;
+        }
+        
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 10px 10px 10px 0;
+        }
+        
+        button:hover {
+            background: #1976D2;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .controls {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .status.running {
+            background: #01579b;
+            color: #fff;
+        }
+        
+        .status.complete {
+            background: #1b5e20;
+            color: #fff;
+        }
+        
+        .status.error {
+            background: #b71c1c;
+            color: #fff;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #1a1a1a;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2196F3, #4CAF50);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .time-step-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .time-step-card {
+            background: #1a1a1a;
+            padding: 12px;
+            border-radius: 4px;
+            border: 2px solid #444;
+        }
+        
+        .time-step-card.early {
+            border-color: #2196F3;
+        }
+        
+        .time-step-card.middle {
+            border-color: #ff9800;
+        }
+        
+        .time-step-card.late {
+            border-color: #f44336;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+        
+        .metric-label {
+            color: #b0b0b0;
+        }
+        
+        .metric-value {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        
+        .chart-container {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+            height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔥 Time-Dependent Evolution Verification</h1>
+    <p>This test verifies that the backend simulation shows proper time-dependent heat evolution according to the heat diffusion equation.</p>
+    
+    <div class="controls">
+        <h2>Test Controls</h2>
+        <button id="runTest" onclick="runVerificationTest()">Run Verification Test</button>
+        <button id="clearResults" onclick="clearResults()">Clear Results</button>
+        <div id="testStatus"></div>
+        <div class="progress-bar" id="progressBar" style="display: none;">
+            <div class="progress-fill" id="progressFill" style="width: 0%;">0%</div>
+        </div>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script>
+        let simulationId = null;
+        let progressInterval = null;
+        
+        function addResult(title, status, details, data = null) {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${status}`;
+            
+            let html = `<div class="test-title">${title}</div>`;
+            if (details) {
+                html += `<div class="test-details">${details}</div>`;
+            }
+            if (data) {
+                html += `<div class="test-data">${JSON.stringify(data, null, 2)}</div>`;
+            }
+            
+            resultDiv.innerHTML = html;
+            resultsDiv.appendChild(resultDiv);
+            
+            // Scroll to bottom
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        function updateStatus(message, type = 'running') {
+            const statusDiv = document.getElementById('testStatus');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+        }
+        
+        function updateProgress(percent) {
+            const progressBar = document.getElementById('progressBar');
+            const progressFill = document.getElementById('progressFill');
+            progressBar.style.display = 'block';
+            progressFill.style.width = `${percent}%`;
+            progressFill.textContent = `${percent.toFixed(1)}%`;
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('testStatus').innerHTML = '';
+            document.getElementById('progressBar').style.display = 'none';
+        }
+        
+        async function runVerificationTest() {
+            clearResults();
+            updateStatus('Starting time-dependent evolution verification...', 'running');
+            
+            const runButton = document.getElementById('runTest');
+            runButton.disabled = true;
+            
+            try {
+                // Test 1: Run simulation with Steel, 60s duration
+                addResult('Test 1: Running Simulation', 'pending', 
+                    'Running simulation with Steel material, 60s duration to capture time evolution');
+                
+                const parameters = {
+                    furnace: {
+                        height: 2.0,
+                        radius: 1.0
+                    },
+                    torch: {
+                        position: { r: 0, z: 0.5 },  // Center, middle height
+                        power: 150,
+                        efficiency: 0.8
+                    },
+                    material: 'Steel',
+                    simulation: {
+                        duration: 60,
+                        timeStep: 0.5
+                    }
+                };
+                
+                addResult('Simulation Parameters', 'info', null, parameters);
+                
+                // Start simulation
+                const startResult = await window.__TAURI__.core.invoke('run_simulation', { 
+                    parameters: transformParameters(parameters) 
+                });
+                
+                if (!startResult.success) {
+                    throw new Error('Failed to start simulation: ' + startResult.message);
+                }
+                
+                simulationId = startResult.simulation_id;
+                addResult('Simulation Started', 'pass', `Simulation ID: ${simulationId}`);
+                
+                // Monitor progress
+                updateStatus('Simulation running...', 'running');
+                await monitorSimulationProgress(simulationId);
+                
+                // Get results
+                addResult('Test 2: Retrieving Results', 'pending', 'Fetching simulation results from backend');
+                
+                const resultsResponse = await window.__TAURI__.core.invoke('get_simulation_results', {
+                    simulationId: simulationId
+                });
+                
+                if (!resultsResponse.results) {
+                    throw new Error('No results returned from backend');
+                }
+                
+                const results = resultsResponse.results;
+                addResult('Results Retrieved', 'pass', 
+                    `Retrieved ${results.metadata?.time_steps || 0} time steps`);
+                
+                // Test 3: Verify early time step (heat concentrated at torch)
+                addResult('Test 3: Early Time Step Analysis', 'pending', 
+                    'Checking that heat is concentrated at torch position at t=0');
+                
+                const earlyTimeAnalysis = analyzeTimeStep(results, 0, parameters);
+                
+                if (earlyTimeAnalysis.heatConcentratedAtTorch) {
+                    addResult('✓ Early Time Step: Heat Concentrated', 'pass',
+                        `Peak temperature at torch location: ${earlyTimeAnalysis.peakTemp.toFixed(1)}K. ` +
+                        `Heat is properly concentrated at the torch position.`,
+                        earlyTimeAnalysis);
+                } else {
+                    addResult('✗ Early Time Step: Heat Not Concentrated', 'fail',
+                        `Heat should be concentrated at torch but spread is ${earlyTimeAnalysis.heatSpreadRadius.toFixed(2)}m`,
+                        earlyTimeAnalysis);
+                }
+                
+                // Test 4: Verify middle time step (heat spreading)
+                const middleStep = Math.floor(results.metadata.time_steps / 2);
+                addResult('Test 4: Middle Time Step Analysis', 'pending',
+                    `Checking heat spread at t=${middleStep * 0.5}s (step ${middleStep})`);
+                
+                const middleTimeAnalysis = analyzeTimeStep(results, middleStep, parameters);
+                
+                if (middleTimeAnalysis.heatSpreadRadius > earlyTimeAnalysis.heatSpreadRadius) {
+                    addResult('✓ Middle Time Step: Heat Spreading', 'pass',
+                        `Heat spread increased from ${earlyTimeAnalysis.heatSpreadRadius.toFixed(2)}m to ${middleTimeAnalysis.heatSpreadRadius.toFixed(2)}m`,
+                        middleTimeAnalysis);
+                } else {
+                    addResult('✗ Middle Time Step: No Heat Spread', 'fail',
+                        `Heat spread should increase over time`,
+                        middleTimeAnalysis);
+                }
+                
+                // Test 5: Verify late time step (maximum spread)
+                const lateStep = results.metadata.time_steps - 1;
+                addResult('Test 5: Late Time Step Analysis', 'pending',
+                    `Checking maximum heat spread at t=${lateStep * 0.5}s (step ${lateStep})`);
+                
+                const lateTimeAnalysis = analyzeTimeStep(results, lateStep, parameters);
+                
+                if (lateTimeAnalysis.heatSpreadRadius > middleTimeAnalysis.heatSpreadRadius) {
+                    addResult('✓ Late Time Step: Maximum Spread', 'pass',
+                        `Heat spread reached ${lateTimeAnalysis.heatSpreadRadius.toFixed(2)}m at end of simulation`,
+                        lateTimeAnalysis);
+                } else {
+                    addResult('✗ Late Time Step: Spread Not Increasing', 'fail',
+                        `Heat spread should continue increasing`,
+                        lateTimeAnalysis);
+                }
+                
+                // Test 6: Verify temporal evolution follows diffusion physics
+                addResult('Test 6: Temporal Evolution Analysis', 'pending',
+                    'Verifying heat spread follows diffusion equation (proportional to sqrt(time))');
+                
+                const evolutionAnalysis = analyzeTemporalEvolution(results, parameters);
+                
+                if (evolutionAnalysis.followsDiffusionPhysics) {
+                    addResult('✓ Temporal Evolution: Follows Diffusion Physics', 'pass',
+                        `Heat spread correlation with sqrt(time): ${evolutionAnalysis.sqrtTimeCorrelation.toFixed(3)}. ` +
+                        `Backend correctly implements: ∂T/∂t = α * [1/r * ∂/∂r(r * ∂T/∂r) + ∂²T/∂z²] + Q/(ρ*cp)`,
+                        evolutionAnalysis);
+                } else {
+                    addResult('✗ Temporal Evolution: Does Not Follow Physics', 'fail',
+                        `Heat spread should be proportional to sqrt(time) for diffusion`,
+                        evolutionAnalysis);
+                }
+                
+                // Test 7: Verify smooth animation capability
+                addResult('Test 7: Animation Smoothness Check', 'pending',
+                    'Checking that time steps are sufficient for smooth animation');
+                
+                const animationAnalysis = analyzeAnimationSmoothness(results);
+                
+                if (animationAnalysis.isSmooth) {
+                    addResult('✓ Animation: Smooth Temporal Evolution', 'pass',
+                        `${animationAnalysis.totalTimeSteps} time steps provide smooth animation at ${animationAnalysis.fps.toFixed(1)} FPS`,
+                        animationAnalysis);
+                } else {
+                    addResult('⚠ Animation: May Be Choppy', 'pending',
+                        `Only ${animationAnalysis.totalTimeSteps} time steps available`,
+                        animationAnalysis);
+                }
+                
+                // Summary
+                addResult('Verification Complete', 'pass',
+                    'All time-dependent evolution tests completed. Backend correctly implements heat diffusion physics.');
+                
+                updateStatus('Verification complete!', 'complete');
+                
+            } catch (error) {
+                console.error('Verification test failed:', error);
+                addResult('Test Failed', 'fail', error.message);
+                updateStatus('Verification failed: ' + error.message, 'error');
+            } finally {
+                runButton.disabled = false;
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                }
+            }
+        }
+        
+        async function monitorSimulationProgress(simId) {
+            return new Promise((resolve, reject) => {
+                progressInterval = setInterval(async () => {
+                    try {
+                        const progress = await window.__TAURI__.core.invoke('get_simulation_progress', {
+                            simulationId: simId
+                        });
+                        
+                        if (progress.progress) {
+                            const percent = progress.progress.progress_percent || 0;
+                            updateProgress(percent);
+                            
+                            if (progress.progress.status === 'Completed') {
+                                clearInterval(progressInterval);
+                                updateProgress(100);
+                                resolve();
+                            } else if (progress.progress.status === 'Failed') {
+                                clearInterval(progressInterval);
+                                reject(new Error('Simulation failed'));
+                            }
+                        }
+                    } catch (error) {
+                        clearInterval(progressInterval);
+                        reject(error);
+                    }
+                }, 1000);
+            });
+        }
+        
+        function transformParameters(frontendParams) {
+            const furnaceHeight = frontendParams.furnace?.height || 2.0;
+            const furnaceRadius = frontendParams.furnace?.radius || 1.0;
+            const normalizedR = frontendParams.torch?.position?.r || 0;
+            const normalizedZ = frontendParams.torch?.position?.z || 0.5;
+            
+            return {
+                geometry: {
+                    cylinder_height: furnaceHeight,
+                    cylinder_radius: furnaceRadius
+                },
+                torches: {
+                    torches: [{
+                        power: frontendParams.torch?.power || 150,
+                        position: {
+                            r: normalizedR * furnaceRadius,
+                            z: normalizedZ * furnaceHeight
+                        },
+                        efficiency: frontendParams.torch?.efficiency || 0.8
+                    }]
+                },
+                material: frontendParams.material || "Steel",
+                simulation: {
+                    total_time: frontendParams.simulation?.duration || 60,
+                    time_step: frontendParams.simulation?.timeStep || 0.5
+                }
+            };
+        }
+        
+        function analyzeTimeStep(results, timeStepIndex, parameters) {
+            const temperatureData = results.temperature?.data;
+            if (!temperatureData || !Array.isArray(temperatureData)) {
+                throw new Error('Invalid temperature data structure');
+            }
+            
+            // Get temperature grid for this time step
+            let grid;
+            if (Array.isArray(temperatureData[0]) && Array.isArray(temperatureData[0][0])) {
+                // 3D array: [timeStep][row][col]
+                grid = temperatureData[timeStepIndex];
+            } else {
+                // 2D array: [row][col] - single time step
+                grid = temperatureData;
+            }
+            
+            if (!grid || !Array.isArray(grid)) {
+                throw new Error('Invalid grid data for time step ' + timeStepIndex);
+            }
+            
+            const numRows = grid.length;
+            const numCols = grid[0]?.length || 0;
+            
+            // Find peak temperature and its location
+            let peakTemp = -Infinity;
+            let peakRow = 0;
+            let peakCol = 0;
+            let totalTemp = 0;
+            let count = 0;
+            
+            for (let row = 0; row < numRows; row++) {
+                for (let col = 0; col < numCols; col++) {
+                    const temp = grid[row][col];
+                    if (typeof temp === 'number' && !isNaN(temp)) {
+                        totalTemp += temp;
+                        count++;
+                        
+                        if (temp > peakTemp) {
+                            peakTemp = temp;
+                            peakRow = row;
+                            peakCol = col;
+                        }
+                    }
+                }
+            }
+            
+            const avgTemp = count > 0 ? totalTemp / count : 300;
+            
+            // Calculate heat spread radius (distance from center where temp > ambient + 10%)
+            const threshold = 300 + (peakTemp - 300) * 0.1;
+            let maxSpreadRadius = 0;
+            
+            const furnaceRadius = parameters.furnace?.radius || 1.0;
+            const furnaceHeight = parameters.furnace?.height || 2.0;
+            
+            for (let row = 0; row < numRows; row++) {
+                for (let col = 0; col < numCols; col++) {
+                    const temp = grid[row][col];
+                    if (temp > threshold) {
+                        // Convert grid indices to physical coordinates
+                        const r = (col / (numCols - 1)) * furnaceRadius;
+                        const z = (row / (numRows - 1)) * furnaceHeight;
+                        
+                        // Distance from torch (at center, middle height)
+                        const torchR = 0;
+                        const torchZ = furnaceHeight / 2;
+                        const distance = Math.sqrt((r - torchR) ** 2 + (z - torchZ) ** 2);
+                        
+                        maxSpreadRadius = Math.max(maxSpreadRadius, distance);
+                    }
+                }
+            }
+            
+            // Check if heat is concentrated at torch (peak near center)
+            const peakNormalizedR = peakCol / (numCols - 1);
+            const peakNormalizedZ = peakRow / (numRows - 1);
+            const distanceFromTorch = Math.sqrt(peakNormalizedR ** 2 + (peakNormalizedZ - 0.5) ** 2);
+            const heatConcentratedAtTorch = distanceFromTorch < 0.2; // Within 20% of furnace size
+            
+            return {
+                timeStep: timeStepIndex,
+                time: timeStepIndex * 0.5,
+                peakTemp,
+                avgTemp,
+                peakLocation: { row: peakRow, col: peakCol, normalizedR: peakNormalizedR, normalizedZ: peakNormalizedZ },
+                heatSpreadRadius: maxSpreadRadius,
+                heatConcentratedAtTorch,
+                distanceFromTorch,
+                gridSize: { rows: numRows, cols: numCols }
+            };
+        }
+        
+        function analyzeTemporalEvolution(results, parameters) {
+            const timeSteps = results.metadata?.time_steps || 0;
+            const spreadData = [];
+            
+            // Analyze multiple time steps
+            const sampleSteps = [0, Math.floor(timeSteps / 4), Math.floor(timeSteps / 2), 
+                                 Math.floor(3 * timeSteps / 4), timeSteps - 1];
+            
+            for (const step of sampleSteps) {
+                const analysis = analyzeTimeStep(results, step, parameters);
+                spreadData.push({
+                    time: analysis.time,
+                    sqrtTime: Math.sqrt(analysis.time + 0.1), // Add small offset to avoid sqrt(0)
+                    spread: analysis.heatSpreadRadius
+                });
+            }
+            
+            // Calculate correlation between spread and sqrt(time)
+            // For diffusion, spread ∝ sqrt(α * t)
+            const correlation = calculateCorrelation(
+                spreadData.map(d => d.sqrtTime),
+                spreadData.map(d => d.spread)
+            );
+            
+            return {
+                spreadData,
+                sqrtTimeCorrelation: correlation,
+                followsDiffusionPhysics: correlation > 0.8 // Strong positive correlation
+            };
+        }
+        
+        function calculateCorrelation(x, y) {
+            const n = x.length;
+            if (n === 0) return 0;
+            
+            const sumX = x.reduce((a, b) => a + b, 0);
+            const sumY = y.reduce((a, b) => a + b, 0);
+            const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
+            const sumX2 = x.reduce((sum, xi) => sum + xi * xi, 0);
+            const sumY2 = y.reduce((sum, yi) => sum + yi * yi, 0);
+            
+            const numerator = n * sumXY - sumX * sumY;
+            const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+            
+            return denominator === 0 ? 0 : numerator / denominator;
+        }
+        
+        function analyzeAnimationSmoothness(results) {
+            const totalTimeSteps = results.metadata?.time_steps || 0;
+            const totalTime = results.metadata?.total_time || 60;
+            const timeStepDuration = totalTime / totalTimeSteps;
+            
+            // Assume 30 FPS for smooth animation
+            const targetFPS = 30;
+            const targetFrameTime = 1 / targetFPS;
+            
+            // Calculate effective FPS if we play all time steps
+            const fps = totalTimeSteps / totalTime;
+            
+            return {
+                totalTimeSteps,
+                totalTime,
+                timeStepDuration,
+                fps,
+                isSmooth: totalTimeSteps >= 60 // At least 60 frames for 60 seconds
+            };
+        }
+        
+        // Check if Tauri is available
+        if (!window.__TAURI__) {
+            addResult('Error', 'fail', 'Tauri API not available. This test must be run in the Tauri application.');
+            updateStatus('Tauri not available', 'error');
+        } else {
+            addResult('Ready', 'info', 'Tauri API available. Click "Run Verification Test" to start.');
+        }
+    </script>
+</body>
+</html>

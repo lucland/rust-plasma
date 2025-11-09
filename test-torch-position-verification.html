@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Torch Position Verification Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        h1 {
+            color: #4CAF50;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #2196F3;
+            margin-top: 30px;
+        }
+        .test-section {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .test-case {
+            background: #333;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .test-case.running {
+            border-left-color: #FFC107;
+        }
+        .test-case.passed {
+            border-left-color: #4CAF50;
+        }
+        .test-case.failed {
+            border-left-color: #f44336;
+        }
+        .test-params {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .test-result.success {
+            background: #1b5e20;
+            color: #a5d6a7;
+        }
+        .test-result.failure {
+            background: #b71c1c;
+            color: #ef9a9a;
+        }
+        .test-result.info {
+            background: #01579b;
+            color: #81d4fa;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status.running {
+            background: #FFF3E0;
+            color: #E65100;
+        }
+        .status.complete {
+            background: #E8F5E9;
+            color: #2E7D32;
+        }
+        .status.error {
+            background: #FFEBEE;
+            color: #C62828;
+        }
+        .heatmap-preview {
+            margin: 15px 0;
+            padding: 10px;
+            background: #1a1a1a;
+            border-radius: 4px;
+        }
+        .temp-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            margin: 10px 0;
+        }
+        .temp-cell {
+            aspect-ratio: 1;
+            border-radius: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7em;
+        }
+        .instructions {
+            background: #263238;
+            border-left: 4px solid #00BCD4;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #00BCD4;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔥 Torch Position Verification Test</h1>
+    
+    <div class="instructions">
+        <h3>Test Objective</h3>
+        <p>Verify that the Rust backend correctly positions the heat source at the specified torch coordinates using Gaussian distribution: Q(r) = (P*η)/(2πσ²) * exp(-d²/(2σ²))</p>
+        <ol>
+            <li><strong>Test 1:</strong> Torch at (r=0, z=0.5) → Hottest point should be at center-middle</li>
+            <li><strong>Test 2:</strong> Torch at (r=0.5, z=0.25) → Hottest point should be at 50% radius, 25% height</li>
+            <li><strong>Test 3:</strong> Torch at (r=1, z=1) → Hottest point should be at edge-top</li>
+        </ol>
+        <p><strong>Requirements:</strong> 1.1, 1.2, 1.3 from physics-heat-simulation spec</p>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button id="runAllTests" onclick="runAllTests()">Run All Tests</button>
+        <button id="runTest1" onclick="runTest(1)">Test 1: Center-Middle</button>
+        <button id="runTest2" onclick="runTest(2)">Test 2: 50% Radius, 25% Height</button>
+        <button id="runTest3" onclick="runTest(3)">Test 3: Edge-Top</button>
+        <div id="overallStatus"></div>
+    </div>
+
+    <div id="testResults"></div>
+
+    <script>
+        // Test configuration
+        const tests = [
+            {
+                id: 1,
+                name: "Center-Middle Position",
+                description: "Torch at (r=0, z=0.5) - center of cylinder, middle height",
+                torchPosition: { r: 0.0, z: 0.5 },
+                expectedHotspot: { r: 0.0, z: 0.5 },
+                tolerance: 0.15 // 15% tolerance for position
+            },
+            {
+                id: 2,
+                name: "50% Radius, 25% Height",
+                description: "Torch at (r=0.5, z=0.25) - halfway to edge, quarter height",
+                torchPosition: { r: 0.5, z: 0.25 },
+                expectedHotspot: { r: 0.5, z: 0.25 },
+                tolerance: 0.15
+            },
+            {
+                id: 3,
+                name: "Edge-Top Position",
+                description: "Torch at (r=1.0, z=1.0) - edge of cylinder, top",
+                torchPosition: { r: 1.0, z: 1.0 },
+                expectedHotspot: { r: 1.0, z: 1.0 },
+                tolerance: 0.15
+            }
+        ];
+
+        let testResults = [];
+
+        async function runAllTests() {
+            console.log('🚀 Starting all torch position verification tests...');
+            testResults = [];
+            
+            const runButton = document.getElementById('runAllTests');
+            runButton.disabled = true;
+            runButton.textContent = 'Running Tests...';
+            
+            updateOverallStatus('running', 'Running all tests...');
+            
+            for (const test of tests) {
+                await runTest(test.id);
+                // Wait a bit between tests
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+            
+            runButton.disabled = false;
+            runButton.textContent = 'Run All Tests';
+            
+            // Show summary
+            showTestSummary();
+        }
+
+        async function runTest(testId) {
+            const test = tests.find(t => t.id === testId);
+            if (!test) {
+                console.error('Test not found:', testId);
+                return;
+            }
+
+            console.log(`\n🧪 Running Test ${testId}: ${test.name}`);
+            console.log('📍 Torch position:', test.torchPosition);
+            console.log('🎯 Expected hotspot:', test.expectedHotspot);
+
+            // Create test case UI
+            const testCase = createTestCaseUI(test);
+            updateTestStatus(testCase, 'running', 'Running simulation...');
+
+            try {
+                // Check if Tauri is available
+                if (!window.__TAURI__) {
+                    throw new Error('Tauri backend not available. Please run this test in the Tauri application.');
+                }
+
+                // Prepare simulation parameters
+                const parameters = {
+                    geometry: {
+                        cylinder_height: 2.0,
+                        cylinder_radius: 1.0
+                    },
+                    torches: {
+                        torches: [{
+                            power: 150,
+                            position: {
+                                r: test.torchPosition.r * 1.0, // Convert normalized to absolute
+                                z: test.torchPosition.z * 2.0  // Convert normalized to absolute
+                            },
+                            efficiency: 0.8
+                        }]
+                    },
+                    material: "Steel",
+                    simulation: {
+                        total_time: 10.0, // Short simulation for quick testing
+                        time_step: 0.5
+                    }
+                };
+
+                console.log('📊 Simulation parameters:', parameters);
+                updateTestStatus(testCase, 'running', 'Calling backend...');
+
+                // Run simulation
+                const result = await window.__TAURI__.core.invoke('run_simulation', { parameters });
+                
+                if (!result.success) {
+                    throw new Error(result.message || 'Simulation failed to start');
+                }
+
+                console.log('✅ Simulation started:', result.simulation_id);
+                updateTestStatus(testCase, 'running', `Simulation running (ID: ${result.simulation_id})...`);
+
+                // Wait for simulation to complete
+                const simulationResult = await waitForSimulationCompletion(result.simulation_id, testCase);
+                
+                console.log('✅ Simulation completed');
+                updateTestStatus(testCase, 'running', 'Analyzing results...');
+
+                // Get simulation results
+                const resultsResponse = await window.__TAURI__.core.invoke('get_simulation_results', {
+                    simulationId: result.simulation_id
+                });
+
+                console.log('📊 Results received:', {
+                    hasResults: !!resultsResponse.results,
+                    hasTemperature: !!resultsResponse.results?.temperature
+                });
+
+                // Analyze results
+                const analysis = analyzeTemperatureDistribution(
+                    resultsResponse.results,
+                    test.expectedHotspot,
+                    test.tolerance
+                );
+
+                console.log('📈 Analysis complete:', analysis);
+
+                // Display results
+                displayTestResults(testCase, test, analysis);
+
+                // Store result
+                testResults.push({
+                    testId: test.id,
+                    testName: test.name,
+                    passed: analysis.passed,
+                    analysis: analysis
+                });
+
+                if (analysis.passed) {
+                    updateTestStatus(testCase, 'passed', '✅ Test PASSED');
+                } else {
+                    updateTestStatus(testCase, 'failed', '❌ Test FAILED');
+                }
+
+            } catch (error) {
+                console.error('❌ Test failed:', error);
+                updateTestStatus(testCase, 'failed', `Error: ${error.message}`);
+                
+                testResults.push({
+                    testId: test.id,
+                    testName: test.name,
+                    passed: false,
+                    error: error.message
+                });
+            }
+        }
+
+        function createTestCaseUI(test) {
+            const container = document.getElementById('testResults');
+            
+            const testCase = document.createElement('div');
+            testCase.className = 'test-case';
+            testCase.id = `test-${test.id}`;
+            
+            testCase.innerHTML = `
+                <h3>Test ${test.id}: ${test.name}</h3>
+                <p>${test.description}</p>
+                <div class="test-params">
+                    <strong>Torch Position (normalized):</strong> r=${test.torchPosition.r}, z=${test.torchPosition.z}<br>
+                    <strong>Expected Hotspot:</strong> r=${test.expectedHotspot.r}, z=${test.expectedHotspot.z}<br>
+                    <strong>Tolerance:</strong> ±${(test.tolerance * 100).toFixed(0)}%
+                </div>
+                <div class="test-result info" id="status-${test.id}">
+                    Initializing test...
+                </div>
+                <div id="results-${test.id}"></div>
+            `;
+            
+            container.appendChild(testCase);
+            return testCase;
+        }
+
+        function updateTestStatus(testCase, status, message) {
+            const statusDiv = testCase.querySelector('.test-result');
+            statusDiv.className = `test-result ${status === 'passed' ? 'success' : status === 'failed' ? 'failure' : 'info'}`;
+            statusDiv.textContent = message;
+            
+            testCase.className = `test-case ${status}`;
+        }
+
+        function updateOverallStatus(status, message) {
+            const statusDiv = document.getElementById('overallStatus');
+            statusDiv.className = `status ${status}`;
+            statusDiv.textContent = message;
+        }
+
+        async function waitForSimulationCompletion(simulationId, testCase) {
+            return new Promise((resolve, reject) => {
+                const checkInterval = setInterval(async () => {
+                    try {
+                        const progress = await window.__TAURI__.core.invoke('get_simulation_progress', {
+                            simulationId: simulationId
+                        });
+
+                        if (progress.progress) {
+                            const percent = progress.progress.progress_percent || 0;
+                            updateTestStatus(testCase, 'running', `Simulation progress: ${percent.toFixed(1)}%`);
+
+                            if (progress.progress.status === 'Completed') {
+                                clearInterval(checkInterval);
+                                resolve(progress);
+                            } else if (progress.progress.status === 'Failed') {
+                                clearInterval(checkInterval);
+                                reject(new Error('Simulation failed'));
+                            }
+                        }
+                    } catch (error) {
+                        clearInterval(checkInterval);
+                        reject(error);
+                    }
+                }, 1000);
+
+                // Timeout after 2 minutes
+                setTimeout(() => {
+                    clearInterval(checkInterval);
+                    reject(new Error('Simulation timeout'));
+                }, 120000);
+            });
+        }
+
+        function analyzeTemperatureDistribution(results, expectedHotspot, tolerance) {
+            if (!results || !results.temperature || !results.temperature.data) {
+                return {
+                    passed: false,
+                    error: 'No temperature data available'
+                };
+            }
+
+            const temperatureData = results.temperature.data;
+            const numRows = temperatureData.length;
+            const numCols = temperatureData[0] ? temperatureData[0].length : 0;
+
+            console.log('🌡️ Temperature grid:', { rows: numRows, cols: numCols });
+
+            // Find the hottest point in the grid
+            let maxTemp = -Infinity;
+            let maxRow = 0;
+            let maxCol = 0;
+
+            for (let row = 0; row < numRows; row++) {
+                for (let col = 0; col < numCols; col++) {
+                    const temp = temperatureData[row][col];
+                    if (temp > maxTemp) {
+                        maxTemp = temp;
+                        maxRow = row;
+                        maxCol = col;
+                    }
+                }
+            }
+
+            // Convert grid indices to normalized coordinates
+            // Row maps to Z (height): 0 (bottom) to 1 (top)
+            // Col maps to R (radius): 0 (center) to 1 (edge)
+            const actualHotspot = {
+                r: maxCol / (numCols - 1),
+                z: maxRow / (numRows - 1)
+            };
+
+            console.log('🔥 Hottest point found:', {
+                gridPosition: { row: maxRow, col: maxCol },
+                normalizedPosition: actualHotspot,
+                temperature: maxTemp.toFixed(1) + 'K'
+            });
+
+            // Calculate distance from expected hotspot
+            const rError = Math.abs(actualHotspot.r - expectedHotspot.r);
+            const zError = Math.abs(actualHotspot.z - expectedHotspot.z);
+            const distance = Math.sqrt(rError * rError + zError * zError);
+
+            // Check if within tolerance
+            const passed = distance <= tolerance;
+
+            console.log('📏 Position accuracy:', {
+                expected: expectedHotspot,
+                actual: actualHotspot,
+                rError: rError.toFixed(3),
+                zError: zError.toFixed(3),
+                distance: distance.toFixed(3),
+                tolerance: tolerance.toFixed(3),
+                passed: passed
+            });
+
+            return {
+                passed: passed,
+                actualHotspot: actualHotspot,
+                expectedHotspot: expectedHotspot,
+                maxTemperature: maxTemp,
+                minTemperature: results.temperature.min,
+                rError: rError,
+                zError: zError,
+                distance: distance,
+                tolerance: tolerance,
+                gridSize: { rows: numRows, cols: numCols },
+                temperatureData: temperatureData
+            };
+        }
+
+        function displayTestResults(testCase, test, analysis) {
+            const resultsDiv = testCase.querySelector(`#results-${test.id}`);
+            
+            if (analysis.error) {
+                resultsDiv.innerHTML = `
+                    <div class="test-result failure">
+                        <strong>Error:</strong> ${analysis.error}
+                    </div>
+                `;
+                return;
+            }
+
+            const passFailClass = analysis.passed ? 'success' : 'failure';
+            const passFailIcon = analysis.passed ? '✅' : '❌';
+
+            resultsDiv.innerHTML = `
+                <div class="test-result ${passFailClass}">
+                    <strong>${passFailIcon} ${analysis.passed ? 'PASSED' : 'FAILED'}</strong>
+                </div>
+                <div class="test-params">
+                    <strong>Expected Hotspot:</strong> r=${analysis.expectedHotspot.r.toFixed(2)}, z=${analysis.expectedHotspot.z.toFixed(2)}<br>
+                    <strong>Actual Hotspot:</strong> r=${analysis.actualHotspot.r.toFixed(2)}, z=${analysis.actualHotspot.z.toFixed(2)}<br>
+                    <strong>Position Error:</strong> Δr=${analysis.rError.toFixed(3)}, Δz=${analysis.zError.toFixed(3)}<br>
+                    <strong>Distance:</strong> ${analysis.distance.toFixed(3)} (tolerance: ${analysis.tolerance.toFixed(3)})<br>
+                    <strong>Temperature Range:</strong> ${analysis.minTemperature.toFixed(1)}K - ${analysis.maxTemperature.toFixed(1)}K
+                </div>
+                <div class="heatmap-preview">
+                    <strong>Temperature Distribution (simplified view):</strong>
+                    ${renderSimpleHeatmap(analysis.temperatureData, analysis.actualHotspot, analysis.gridSize)}
+                </div>
+            `;
+        }
+
+        function renderSimpleHeatmap(temperatureData, hotspot, gridSize) {
+            // Create a simplified 10x10 view of the temperature distribution
+            const displaySize = 10;
+            const rowStep = Math.max(1, Math.floor(gridSize.rows / displaySize));
+            const colStep = Math.max(1, Math.floor(gridSize.cols / displaySize));
+
+            let html = '<div class="temp-grid">';
+            
+            // Find min/max for color scaling
+            let minTemp = Infinity;
+            let maxTemp = -Infinity;
+            for (let row = 0; row < gridSize.rows; row++) {
+                for (let col = 0; col < gridSize.cols; col++) {
+                    const temp = temperatureData[row][col];
+                    minTemp = Math.min(minTemp, temp);
+                    maxTemp = Math.max(maxTemp, temp);
+                }
+            }
+
+            // Sample grid points
+            for (let displayRow = 0; displayRow < displaySize; displayRow++) {
+                for (let displayCol = 0; displayCol < displaySize; displayCol++) {
+                    const row = Math.min(displayRow * rowStep, gridSize.rows - 1);
+                    const col = Math.min(displayCol * colStep, gridSize.cols - 1);
+                    const temp = temperatureData[row][col];
+                    
+                    // Normalize temperature to 0-1
+                    const normalized = (temp - minTemp) / (maxTemp - minTemp);
+                    
+                    // Convert to color
+                    const color = temperatureToRGB(normalized);
+                    
+                    html += `<div class="temp-cell" style="background-color: ${color};" title="T=${temp.toFixed(0)}K"></div>`;
+                }
+            }
+            
+            html += '</div>';
+            html += `<p style="font-size: 0.9em; margin-top: 10px;">Grid shows ${displaySize}x${displaySize} sample of ${gridSize.rows}x${gridSize.cols} simulation grid. Hotspot at r=${hotspot.r.toFixed(2)}, z=${hotspot.z.toFixed(2)}</p>`;
+            
+            return html;
+        }
+
+        function temperatureToRGB(normalized) {
+            // Heat colormap: blue -> cyan -> green -> yellow -> red
+            let r, g, b;
+            
+            if (normalized < 0.25) {
+                const t = normalized / 0.25;
+                r = 0;
+                g = Math.floor(t * 255);
+                b = 255;
+            } else if (normalized < 0.5) {
+                const t = (normalized - 0.25) / 0.25;
+                r = 0;
+                g = 255;
+                b = Math.floor((1 - t) * 255);
+            } else if (normalized < 0.75) {
+                const t = (normalized - 0.5) / 0.25;
+                r = Math.floor(t * 255);
+                g = 255;
+                b = 0;
+            } else {
+                const t = (normalized - 0.75) / 0.25;
+                r = 255;
+                g = Math.floor((1 - t) * 255);
+                b = 0;
+            }
+            
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        function showTestSummary() {
+            const passed = testResults.filter(r => r.passed).length;
+            const total = testResults.length;
+            const allPassed = passed === total;
+
+            updateOverallStatus(
+                allPassed ? 'complete' : 'error',
+                `Tests Complete: ${passed}/${total} passed`
+            );
+
+            console.log('\n📊 Test Summary:');
+            console.log(`Total Tests: ${total}`);
+            console.log(`Passed: ${passed}`);
+            console.log(`Failed: ${total - passed}`);
+            
+            testResults.forEach(result => {
+                console.log(`  ${result.passed ? '✅' : '❌'} Test ${result.testId}: ${result.testName}`);
+            });
+        }
+
+        // Initialize
+        console.log('🔥 Torch Position Verification Test initialized');
+        console.log('📋 Available tests:', tests.length);
+        updateOverallStatus('', 'Ready to run tests');
+    </script>
+</body>
+</html>

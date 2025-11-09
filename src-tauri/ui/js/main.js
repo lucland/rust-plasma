@@ -52,6 +52,19 @@ const elements = {
 document.addEventListener('DOMContentLoaded', async function() {
     console.log('🚀 [MAIN] Plasma Furnace Simulator - Frontend Rebuild');
     console.log('🔧 [MAIN] DOM Content Loaded - Starting initialization...');
+    
+    // Check Tauri API availability
+    console.log('🔍 [MAIN] Checking Tauri API...');
+    console.log('🔍 [MAIN] window.__TAURI__ =', window.__TAURI__);
+    console.log('🔍 [MAIN] window.__TAURI_INTERNALS__ =', window.__TAURI_INTERNALS__);
+    
+    if (!window.__TAURI__) {
+        console.error('❌ [MAIN] Tauri API not available!');
+        console.log('🔍 [MAIN] Available window properties:', Object.keys(window).filter(k => k.includes('TAURI') || k.includes('tauri')));
+    } else {
+        console.log('✅ [MAIN] Tauri API is available');
+        console.log('📦 [MAIN] Tauri API structure:', Object.keys(window.__TAURI__));
+    }
     console.log('📊 [MAIN] Browser Info:', {
         userAgent: navigator.userAgent,
         viewport: { width: window.innerWidth, height: window.innerHeight },
@@ -563,22 +576,47 @@ async function handleCancelSimulation() {
 }
 
 /**
- * Update progress display
+ * Update progress display with real backend data
+ * Updates progress bar, percentage, current time, and estimated remaining time
  */
 function updateProgress(progressData) {
     const progress = progressData.percent || 0;
     
+    // Update progress bar fill
     if (elements.progressFill) {
         elements.progressFill.style.width = progress + '%';
     }
     
+    // Update progress percentage
     if (elements.progressPercentage) {
         elements.progressPercentage.textContent = Math.round(progress) + '%';
     }
     
-    if (elements.progressTime && progressData.estimatedRemaining !== null) {
-        const remaining = progressData.estimatedRemaining || 0;
-        elements.progressTime.textContent = `Estimated: ${remaining.toFixed(1)}s`;
+    // Update progress time with current time and estimated remaining
+    if (elements.progressTime) {
+        let timeText = '';
+        
+        // Show current time if available
+        if (progressData.currentTime !== undefined) {
+            timeText = `Time: ${progressData.currentTime.toFixed(1)}s`;
+            
+            // Add total time if available
+            if (progressData.totalTime !== undefined) {
+                timeText += ` / ${progressData.totalTime.toFixed(1)}s`;
+            }
+        }
+        
+        // Add estimated remaining time if available
+        if (progressData.estimatedRemaining !== null && progressData.estimatedRemaining !== undefined) {
+            const remaining = progressData.estimatedRemaining;
+            if (timeText) {
+                timeText += ` | Remaining: ${remaining.toFixed(1)}s`;
+            } else {
+                timeText = `Estimated: ${remaining.toFixed(1)}s`;
+            }
+        }
+        
+        elements.progressTime.textContent = timeText || 'Calculating...';
     }
 }
 
@@ -759,6 +797,7 @@ function setupStateIntegration() {
     app.eventBus.on('simulation:progress', handleSimulationProgress);
     app.eventBus.on('simulation:completed', handleSimulationCompletedEvent);
     app.eventBus.on('simulation:failed', handleSimulationFailed);
+    app.eventBus.on('simulation:cancelling', handleSimulationCancelling);
     app.eventBus.on('simulation:cancelled', handleSimulationCancelledEvent);
     app.eventBus.on('simulation:timeout', handleSimulationTimeout);
     app.eventBus.on('simulation:error', handleSimulationError);
@@ -1183,6 +1222,27 @@ function handleSimulationFailed(data) {
 }
 
 /**
+ * Handle simulation cancelling event (cancellation in progress)
+ */
+function handleSimulationCancelling(data) {
+    console.log('Simulation cancelling:', data);
+    
+    updateAppStatus('Cancelling simulation...');
+    
+    // Update cancel button to show cancellation in progress
+    if (elements.cancelButton) {
+        elements.cancelButton.disabled = true;
+        elements.cancelButton.textContent = 'Cancelling...';
+        elements.cancelButton.classList.add('btn-loading');
+    }
+    
+    // Update progress text to show cancellation
+    if (elements.progressTime) {
+        elements.progressTime.textContent = 'Cancelling simulation...';
+    }
+}
+
+/**
  * Handle simulation cancellation event from controller
  */
 function handleSimulationCancelledEvent(data) {
@@ -1191,6 +1251,18 @@ function handleSimulationCancelledEvent(data) {
     if (!app || !app.appState) {
         console.error('App not initialized');
         return;
+    }
+    
+    // Hide simulation controls
+    if (elements.simulationControls) {
+        elements.simulationControls.style.display = 'none';
+    }
+    
+    // Reset cancel button state
+    if (elements.cancelButton) {
+        elements.cancelButton.disabled = false;
+        elements.cancelButton.textContent = 'Cancel';
+        elements.cancelButton.classList.remove('btn-loading');
     }
     
     // Transition back to READY state

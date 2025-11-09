@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Visualization with Backend Data Format</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 20px; 
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { color: #4CAF50; }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .visualization-container {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #444;
+            position: relative;
+            background: #1a1a1a;
+        }
+        #visualization-canvas {
+            width: 100%;
+            height: 100%;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .info-panel {
+            background: #333;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .info-item {
+            margin: 5px 0;
+            font-family: monospace;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .warning { color: #ff9800; }
+        #hover-info {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 4px;
+            pointer-events: none;
+            display: none;
+        }
+        #temperature-legend {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 Visualization Panel - Backend Data Integration Test</h1>
+        
+        <div class="test-section">
+            <h2>Test Controls</h2>
+            <div class="controls">
+                <button onclick="testBackendDataFormat()">Test Backend Data Format</button>
+                <button onclick="testTemperatureMapping()">Test Temperature Mapping</button>
+                <button onclick="testTimeStepNavigation()">Test Time Step Navigation</button>
+                <button onclick="testColorMapping()">Test Color Mapping</button>
+                <button onclick="resetVisualization()">Reset</button>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Results</h2>
+            <div id="test-results" class="info-panel">
+                <div class="info-item">Ready to run tests...</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>3D Visualization</h2>
+            <div class="visualization-container">
+                <canvas id="visualization-canvas"></canvas>
+                <div id="hover-info">
+                    <div>Temperature: <span id="hover-temp">-</span> K</div>
+                    <div>R: <span id="hover-r">-</span> m</div>
+                    <div>Z: <span id="hover-z">-</span> m</div>
+                </div>
+                <div id="temperature-legend">
+                    <div>Temperature Legend</div>
+                    <div>Max: <span id="legend-max">-</span> K</div>
+                    <div>Min: <span id="legend-min">-</span> K</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- Event Bus -->
+    <script>
+        class EventBus {
+            constructor() {
+                this.events = {};
+            }
+            on(event, callback) {
+                if (!this.events[event]) {
+                    this.events[event] = [];
+                }
+                this.events[event].push(callback);
+            }
+            emit(event, data) {
+                if (this.events[event]) {
+                    this.events[event].forEach(callback => callback(data));
+                }
+            }
+        }
+        const eventBus = new EventBus();
+    </script>
+
+    <!-- Load Visualization Component -->
+    <script src="src-tauri/ui/js/components/visualization.js"></script>
+
+    <!-- Test Script -->
+    <script>
+        let visualizationPanel;
+        const testResults = document.getElementById('test-results');
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `info-item ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            testResults.appendChild(div);
+            console.log(message);
+        }
+
+        // Initialize visualization
+        async function initVisualization() {
+            const container = document.querySelector('.visualization-container');
+            visualizationPanel = new VisualizationPanel(container, eventBus);
+            
+            const success = await visualizationPanel.init();
+            if (success) {
+                log('✅ Visualization initialized successfully', 'success');
+            } else {
+                log('❌ Visualization initialization failed', 'error');
+            }
+            return success;
+        }
+
+        // Generate mock backend data in the format returned by Rust backend
+        function generateBackendData() {
+            // Simulate backend response format
+            const gridSize = 10; // 10x10 grid
+            const temperatureData = [];
+            
+            // Generate 2D temperature grid (backend format)
+            for (let row = 0; row < gridSize; row++) {
+                const rowData = [];
+                for (let col = 0; col < gridSize; col++) {
+                    // Create a hot spot at center-bottom (torch position)
+                    const normalizedR = col / (gridSize - 1);
+                    const normalizedZ = row / (gridSize - 1);
+                    
+                    // Distance from torch at (r=0, z=0)
+                    const distance = Math.sqrt(normalizedR * normalizedR + normalizedZ * normalizedZ);
+                    
+                    // Temperature decreases with distance
+                    const temp = 300 + (1200 - 300) * Math.exp(-distance * 3);
+                    rowData.push(temp);
+                }
+                temperatureData.push(rowData);
+            }
+            
+            return {
+                timeSteps: [
+                    { time: 0, step: 0 },
+                    { time: 30, step: 1 },
+                    { time: 60, step: 2 }
+                ],
+                duration: 60,
+                temperatureData: temperatureData,
+                metadata: {
+                    parameters: {
+                        furnace: {
+                            height: 2.0,
+                            radius: 1.0
+                        },
+                        torch: {
+                            position: { r: 0, z: 0.05 },
+                            power: 150,
+                            efficiency: 0.8
+                        }
+                    },
+                    totalTime: 60,
+                    timeStepsCompleted: 3,
+                    temperatureRange: {
+                        min: 300,
+                        max: 1200
+                    }
+                }
+            };
+        }
+
+        // Test 1: Backend Data Format
+        function testBackendDataFormat() {
+            log('🧪 Testing backend data format...', 'info');
+            
+            const backendData = generateBackendData();
+            
+            // Validate structure
+            const hasTimeSteps = Array.isArray(backendData.timeSteps);
+            const hasTemperatureData = Array.isArray(backendData.temperatureData);
+            const hasMetadata = !!backendData.metadata;
+            
+            log(`  Time steps: ${hasTimeSteps ? '✅' : '❌'}`, hasTimeSteps ? 'success' : 'error');
+            log(`  Temperature data: ${hasTemperatureData ? '✅' : '❌'}`, hasTemperatureData ? 'success' : 'error');
+            log(`  Metadata: ${hasMetadata ? '✅' : '❌'}`, hasMetadata ? 'success' : 'error');
+            
+            if (hasTemperatureData) {
+                const gridSize = `${backendData.temperatureData.length}x${backendData.temperatureData[0].length}`;
+                log(`  Grid size: ${gridSize}`, 'info');
+                
+                // Sample temperature values
+                const centerTemp = backendData.temperatureData[0][0];
+                const edgeTemp = backendData.temperatureData[9][9];
+                log(`  Center temp: ${centerTemp.toFixed(1)}K`, 'info');
+                log(`  Edge temp: ${edgeTemp.toFixed(1)}K`, 'info');
+            }
+            
+            // Load into visualization
+            try {
+                visualizationPanel.loadSimulationData(backendData);
+                log('✅ Backend data loaded successfully', 'success');
+            } catch (error) {
+                log(`❌ Failed to load backend data: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 2: Temperature Mapping
+        function testTemperatureMapping() {
+            log('🧪 Testing temperature mapping...', 'info');
+            
+            const backendData = generateBackendData();
+            visualizationPanel.loadSimulationData(backendData);
+            
+            // Test temperature lookup at different positions
+            const testPositions = [
+                { r: 0, z: 0, label: 'Center-Bottom (torch)' },
+                { r: 0.5, z: 0.5, label: 'Middle' },
+                { r: 1, z: 1, label: 'Edge-Top' }
+            ];
+            
+            testPositions.forEach(pos => {
+                const temp = visualizationPanel.getTemperatureAt3DPosition(
+                    pos.r, 
+                    pos.z, 
+                    backendData.temperatureData
+                );
+                log(`  ${pos.label}: ${temp.toFixed(1)}K`, 'info');
+            });
+            
+            log('✅ Temperature mapping test complete', 'success');
+        }
+
+        // Test 3: Time Step Navigation
+        function testTimeStepNavigation() {
+            log('🧪 Testing time step navigation...', 'info');
+            
+            const backendData = generateBackendData();
+            visualizationPanel.loadSimulationData(backendData);
+            
+            // Test setting different time steps
+            [0, 1, 2].forEach(step => {
+                visualizationPanel.setTimeStep(step);
+                const actualTime = visualizationPanel.getActualTimeForStep(step);
+                log(`  Step ${step}: ${actualTime}s`, 'info');
+            });
+            
+            log('✅ Time step navigation test complete', 'success');
+        }
+
+        // Test 4: Color Mapping
+        function testColorMapping() {
+            log('🧪 Testing color mapping...', 'info');
+            
+            const testTemps = [300, 600, 900, 1200];
+            
+            testTemps.forEach(temp => {
+                const color = visualizationPanel.temperatureToColor(temp);
+                log(`  ${temp}K -> RGB(${color.r.toFixed(2)}, ${color.g.toFixed(2)}, ${color.b.toFixed(2)})`, 'info');
+            });
+            
+            log('✅ Color mapping test complete', 'success');
+        }
+
+        // Reset visualization
+        function resetVisualization() {
+            testResults.innerHTML = '<div class="info-item">Tests cleared. Ready to run new tests...</div>';
+            if (visualizationPanel) {
+                visualizationPanel.resetCamera();
+            }
+        }
+
+        // Initialize on load
+        window.addEventListener('load', async () => {
+            log('🚀 Initializing test environment...', 'info');
+            await initVisualization();
+            log('✅ Test environment ready', 'success');
+        });
+    </script>
+</body>
+</html>

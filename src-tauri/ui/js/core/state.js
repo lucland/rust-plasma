@@ -264,11 +264,12 @@ class AppState {
                 errors.push('Torch efficiency must be between 0.7 and 0.9');
             }
             if (position) {
-                if (position.r < 0 || position.r > parameters.furnace?.radius) {
-                    errors.push('Torch radial position must be within furnace radius');
+                // Torch positions are normalized (0-1), not absolute coordinates
+                if (position.r < 0 || position.r > 1) {
+                    errors.push('Torch radial position must be between 0 and 1 (normalized)');
                 }
-                if (position.z < 0 || position.z > parameters.furnace?.height) {
-                    errors.push('Torch axial position must be within furnace height');
+                if (position.z < 0 || position.z > 1) {
+                    errors.push('Torch axial position must be between 0 and 1 (normalized)');
                 }
             }
         }

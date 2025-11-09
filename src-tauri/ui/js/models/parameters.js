@@ -15,8 +15,8 @@ class SimulationParameters {
         this.torch = {
             power: 150,   // kW (50-300)
             position: {
-                r: 0.0,   // radial position (0-radius)
-                z: 1.0    // axial position (0-height)
+                r: 0.0,   // radial position normalized (0=center, 1=edge)
+                z: 0.5    // axial position normalized (0=bottom, 1=top)
             },
             efficiency: 0.8,  // (0.7-0.9)
             ...params.torch
@@ -66,17 +66,17 @@ class SimulationParameters {
             });
         }
 
-        if (!this._isValidNumber(this.torch.position.r, 0, this.furnace.radius)) {
+        if (!this._isValidNumber(this.torch.position.r, 0, 1.0)) {
             errors.push({
                 field: 'torch.position.r',
-                message: `Torch radial position must be between 0 and ${this.furnace.radius} meters (furnace radius)`
+                message: 'Torch radial position must be between 0 (center) and 1 (edge)'
             });
         }
 
-        if (!this._isValidNumber(this.torch.position.z, 0, this.furnace.height)) {
+        if (!this._isValidNumber(this.torch.position.z, 0, 1.0)) {
             errors.push({
                 field: 'torch.position.z',
-                message: `Torch axial position must be between 0 and ${this.furnace.height} meters (furnace height)`
+                message: 'Torch axial position must be between 0 (bottom) and 1 (top)'
             });
         }
 
@@ -185,7 +185,7 @@ class SimulationParameters {
                 power: parseFloat(data['torch-power']) || 150,
                 position: {
                     r: parseFloat(data['torch-position-r']) || 0.0,
-                    z: parseFloat(data['torch-position-z']) || 1.0
+                    z: parseFloat(data['torch-position-z']) || 0.5
                 },
                 efficiency: parseFloat(data['torch-efficiency']) || 0.8
             },

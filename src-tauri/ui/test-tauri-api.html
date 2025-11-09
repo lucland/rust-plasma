@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tauri API Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .info { color: #2196F3; }
+        pre {
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tauri API Availability Test</h1>
+    <div id="output"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = message;
+            output.appendChild(div);
+            console.log(message);
+        }
+        
+        function logObject(label, obj) {
+            const pre = document.createElement('pre');
+            pre.className = 'info';
+            pre.textContent = `${label}:\n${JSON.stringify(obj, null, 2)}`;
+            output.appendChild(pre);
+            console.log(label, obj);
+        }
+        
+        log('=== Tauri API Detection Test ===', 'info');
+        log('');
+        
+        // Check for __TAURI__
+        if (window.__TAURI__) {
+            log('✅ window.__TAURI__ is available', 'success');
+            logObject('window.__TAURI__ keys', Object.keys(window.__TAURI__));
+            
+            if (window.__TAURI__.core) {
+                log('✅ window.__TAURI__.core is available', 'success');
+                logObject('window.__TAURI__.core keys', Object.keys(window.__TAURI__.core));
+            }
+            
+            if (window.__TAURI__.event) {
+                log('✅ window.__TAURI__.event is available', 'success');
+                logObject('window.__TAURI__.event keys', Object.keys(window.__TAURI__.event));
+            }
+        } else {
+            log('❌ window.__TAURI__ is NOT available', 'error');
+        }
+        
+        log('');
+        
+        // Check for __TAURI_INTERNALS__
+        if (window.__TAURI_INTERNALS__) {
+            log('✅ window.__TAURI_INTERNALS__ is available', 'success');
+            logObject('window.__TAURI_INTERNALS__ keys', Object.keys(window.__TAURI_INTERNALS__));
+        } else {
+            log('❌ window.__TAURI_INTERNALS__ is NOT available', 'error');
+        }
+        
+        log('');
+        
+        // Check for direct invoke
+        if (typeof window.invoke !== 'undefined') {
+            log('✅ window.invoke is available', 'success');
+        } else {
+            log('❌ window.invoke is NOT available', 'error');
+        }
+        
+        log('');
+        
+        // List all window properties that might be Tauri-related
+        const tauriProps = Object.keys(window).filter(k => 
+            k.toUpperCase().includes('TAURI') || 
+            k.includes('__') ||
+            k.includes('invoke') ||
+            k.includes('ipc')
+        );
+        
+        if (tauriProps.length > 0) {
+            log('🔍 Tauri-related window properties found:', 'info');
+            logObject('Properties', tauriProps);
+        } else {
+            log('❌ No Tauri-related properties found in window object', 'error');
+        }
+        
+        log('');
+        log('=== Test Complete ===', 'info');
+        
+        // Try to invoke a command if API is available
+        if (window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke) {
+            log('');
+            log('🧪 Attempting to invoke a test command...', 'info');
+            
+            window.__TAURI__.core.invoke('get_debug_state')
+                .then(result => {
+                    log('✅ Successfully invoked get_debug_state command', 'success');
+                    logObject('Result', result);
+                })
+                .catch(error => {
+                    log('⚠️ Command invocation failed (this is expected if command doesn\'t exist): ' + error.message, 'error');
+                });
+        }
+    </script>
+</body>
+</html>

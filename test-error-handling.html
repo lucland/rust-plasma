@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Handling Test - Plasma Furnace Simulator</title>
+    <link rel="stylesheet" href="src-tauri/ui/css/main.css">
+    <style>
+        body {
+            padding: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+        .test-section h2 {
+            margin-bottom: 15px;
+            color: #343a40;
+        }
+        .test-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .test-info {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Backend Error Handling Test</h1>
+    <p>This page tests the comprehensive error handling for backend simulation errors.</p>
+
+    <div class="test-section">
+        <h2>1. Backend Connection Errors</h2>
+        <div class="test-buttons">
+            <button class="btn btn-primary" onclick="testConnectionError()">Test Connection Error</button>
+            <button class="btn btn-primary" onclick="testBackendUnavailable()">Test Backend Unavailable</button>
+        </div>
+        <div class="test-info">
+            Tests error handling when the backend is not available or connection fails.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Simulation Errors</h2>
+        <div class="test-buttons">
+            <button class="btn btn-primary" onclick="testSimulationTimeout()">Test Timeout Error</button>
+            <button class="btn btn-primary" onclick="testSimulationFailure()">Test Simulation Failure</button>
+            <button class="btn btn-primary" onclick="testMemoryError()">Test Memory Error</button>
+        </div>
+        <div class="test-info">
+            Tests error handling for various simulation failure scenarios.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. Validation Errors</h2>
+        <div class="test-buttons">
+            <button class="btn btn-primary" onclick="testValidationError()">Test Validation Error</button>
+            <button class="btn btn-primary" onclick="testInvalidParameters()">Test Invalid Parameters</button>
+        </div>
+        <div class="test-info">
+            Tests error handling for parameter validation failures.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Retry Logic</h2>
+        <div class="test-buttons">
+            <button class="btn btn-primary" onclick="testRetrySuccess()">Test Retry Success</button>
+            <button class="btn btn-primary" onclick="testRetryExhausted()">Test Retry Exhausted</button>
+        </div>
+        <div class="test-info">
+            Tests retry logic for transient failures.
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>5. Error Display</h2>
+        <div class="test-buttons">
+            <button class="btn btn-secondary" onclick="clearAllErrors()">Clear All Errors</button>
+            <button class="btn btn-secondary" onclick="showErrorStats()">Show Error Stats</button>
+        </div>
+        <div class="test-info" id="error-stats">
+            Error statistics will appear here.
+        </div>
+    </div>
+
+    <!-- Error container will be created by ErrorDisplay -->
+
+    <script src="src-tauri/ui/js/core/eventBus.js"></script>
+    <script src="src-tauri/ui/js/core/errorHandler.js"></script>
+    <script src="src-tauri/ui/js/components/errorDisplay.js"></script>
+    <script src="src-tauri/ui/js/components/simulation.js"></script>
+
+    <script>
+        // Initialize components
+        const eventBus = new EventBus();
+        const errorHandler = new ErrorHandler(eventBus);
+        const errorDisplay = new ErrorDisplay(eventBus);
+        const simulationController = new SimulationController(eventBus);
+
+        // Mock Tauri for testing
+        window.__TAURI__ = {
+            core: {
+                invoke: async (command, payload) => {
+                    console.log('Mock Tauri invoke:', command, payload);
+                    // Simulate different error scenarios based on test
+                    throw new Error('Mock error for testing');
+                }
+            },
+            event: {
+                listen: (event, callback) => {
+                    console.log('Mock Tauri listen:', event);
+                }
+            }
+        };
+
+        // Test functions
+        function testConnectionError() {
+            const error = new Error('Cannot connect to the simulation backend');
+            simulationController.handleBackendError(error, 'start simulation', {
+                parameters: { test: true }
+            });
+        }
+
+        function testBackendUnavailable() {
+            window.__TAURI__ = null;
+            simulationController.checkBackendAvailability().then(available => {
+                console.log('Backend available:', available);
+                if (!available) {
+                    const error = new Error('Tauri backend is not available');
+                    simulationController.handleBackendError(error, 'check backend', {});
+                }
+            });
+        }
+
+        function testSimulationTimeout() {
+            const error = new Error('Simulation exceeded maximum time limit');
+            simulationController.handleBackendError(error, 'complete simulation', {
+                timeout: 300000,
+                reason: 'timeout'
+            });
+        }
+
+        function testSimulationFailure() {
+            const error = new Error('Simulation failed: Numerical instability detected');
+            simulationController.handleBackendError(error, 'run simulation', {
+                simulationId: 'test-123'
+            });
+        }
+
+        function testMemoryError() {
+            const error = new Error('The simulation ran out of memory');
+            simulationController.handleBackendError(error, 'run simulation', {
+                simulationId: 'test-456'
+            });
+        }
+
+        function testValidationError() {
+            const error = new Error('Invalid parameters: Cylinder height must be positive');
+            error.retryable = false;
+            simulationController.handleBackendError(error, 'start simulation', {
+                parameters: { height: -1 }
+            });
+        }
+
+        function testInvalidParameters() {
+            errorHandler.handle(
+                new Error('The value for cylinder_height must be between 0.1 and 10'),
+                'validation',
+                { field: 'cylinder_height', min: 0.1, max: 10, value: -1 }
+            );
+        }
+
+        function testRetrySuccess() {
+            eventBus.emit('simulation:retrying', {
+                attempt: 2,
+                maxRetries: 3,
+                nextRetryIn: 4000,
+                error: 'Connection temporarily unavailable'
+            });
+            
+            setTimeout(() => {
+                eventBus.emit('simulation:retry-success', { attempt: 2 });
+            }, 2000);
+        }
+
+        function testRetryExhausted() {
+            for (let i = 1; i <= 3; i++) {
+                setTimeout(() => {
+                    eventBus.emit('simulation:retrying', {
+                        attempt: i,
+                        maxRetries: 3,
+                        nextRetryIn: 2000 * Math.pow(2, i-1),
+                        error: 'Backend connection failed'
+                    });
+                }, (i-1) * 1000);
+            }
+            
+            setTimeout(() => {
+                const error = new Error('All retry attempts exhausted');
+                simulationController.handleBackendError(error, 'start simulation', {
+                    retries: 3
+                });
+            }, 4000);
+        }
+
+        function clearAllErrors() {
+            eventBus.emit('error:clear', {});
+        }
+
+        function showErrorStats() {
+            const stats = errorHandler.getErrorStats();
+            const statsDiv = document.getElementById('error-stats');
+            statsDiv.innerHTML = `
+                <strong>Error Statistics:</strong><br>
+                Total Errors: ${stats.total}<br>
+                By Type: ${JSON.stringify(stats.byType, null, 2)}<br>
+                By Severity: ${JSON.stringify(stats.bySeverity, null, 2)}
+            `;
+        }
+
+        // Listen for retry events to show notifications
+        eventBus.on('simulation:retrying', (data) => {
+            console.log('Retrying simulation:', data);
+            // Could show a retry notification here
+        });
+
+        eventBus.on('simulation:retry-success', (data) => {
+            console.log('Retry succeeded:', data);
+        });
+
+        console.log('Error handling test page loaded');
+        console.log('Components initialized:', {
+            eventBus: !!eventBus,
+            errorHandler: !!errorHandler,
+            errorDisplay: !!errorDisplay,
+            simulationController: !!simulationController
+        });
+    </script>
+</body>
+</html>

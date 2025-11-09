@@ -47,3 +47,7 @@ approx = "0.5"
 name = "solver_benchmark"
 harness = false
 path = "benches/solver_benchmark.rs"
+
+[[bin]]
+name = "performance_test"
+path = "benches/performance_test.rs"

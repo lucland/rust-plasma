@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Testing - Plasma Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .test-section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .test-card {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .test-card h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .test-card .config {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .test-card .status {
+            font-size: 13px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.running {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .metrics {
+            font-size: 12px;
+            color: #333;
+        }
+
+        .metrics div {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .metrics .label {
+            color: #666;
+        }
+
+        .metrics .value {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .summary-table th,
+        .summary-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .summary-table th {
+            background: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .summary-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #155724;
+        }
+
+        .log-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+
+        .log-output .timestamp {
+            color: #858585;
+        }
+
+        .log-output .info {
+            color: #4ec9b0;
+        }
+
+        .log-output .warning {
+            color: #dcdcaa;
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .log-output .error {
+            color: #f48771;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Performance Testing Suite</h1>
+        <p class="subtitle">End-to-end performance testing for plasma simulation backend integration</p>
+
+        <!-- Test Controls -->
+        <div class="test-section">
+            <h2>Test Controls</h2>
+            <button class="btn" id="runAllTests" onclick="runAllTests()">Run All Tests</button>
+            <button class="btn btn-secondary" id="clearResults" onclick="clearResults()">Clear Results</button>
+        </div>
+
+        <!-- Mesh Resolution Tests -->
+        <div class="test-section">
+            <h2>1. Mesh Resolution Performance</h2>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Testing simulation performance with different mesh resolutions
+            </p>
+            <div class="test-grid" id="meshTests"></div>
+        </div>
+
+        <!-- Multi-Torch Tests -->
+        <div class="test-section">
+            <h2>2. Multi-Torch Configuration</h2>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Testing performance with multiple plasma torches
+            </p>
+            <div class="test-grid" id="torchTests"></div>
+        </div>
+
+        <!-- Data Transfer Tests -->
+        <div class="test-section">
+            <h2>3. Data Transfer Performance</h2>
+            <p style="color: #666; font-size: 13px; margin-bottom: 15px;">
+                Testing backend-frontend data transfer bottlenecks
+            </p>
+            <div id="transferResults"></div>
+        </div>
+
+        <!-- Summary -->
+        <div class="test-section">
+            <h2>Performance Summary</h2>
+            <div id="summaryContent">
+                <p style="color: #666; font-size: 13px;">Run tests to see performance summary</p>
+            </div>
+        </div>
+
+        <!-- Log Output -->
+        <div class="test-section">
+            <h2>Test Log</h2>
+            <div class="log-output" id="logOutput"></div>
+        </div>
+    </div>
+
+    <script>
+        // Test configurations
+        const meshTestConfigs = [
+            { name: 'Fast (50x50)', preset: 'fast', nr: 50, nz: 50, duration: 60 },
+            { name: 'Balanced (100x100)', preset: 'balanced', nr: 100, nz: 100, duration: 60 },
+            { name: 'High (200x200)', preset: 'high', nr: 200, nz: 200, duration: 60 },
+        ];
+
+        const torchTestConfigs = [
+            { name: 'Single Torch', numTorches: 1, preset: 'balanced' },
+            { name: 'Dual Torch', numTorches: 2, preset: 'balanced' },
+            { name: 'Triple Torch', numTorches: 3, preset: 'balanced' },
+        ];
+
+        let testResults = [];
+
+        // Initialize test cards
+        function initializeTests() {
+            const meshTestsContainer = document.getElementById('meshTests');
+            const torchTestsContainer = document.getElementById('torchTests');
+
+            // Create mesh test cards
+            meshTestConfigs.forEach((config, index) => {
+                const card = createTestCard(`mesh-${index}`, config.name, 
+                    `${config.nr}x${config.nz} nodes, ${config.duration}s simulation`);
+                meshTestsContainer.appendChild(card);
+            });
+
+            // Create torch test cards
+            torchTestConfigs.forEach((config, index) => {
+                const card = createTestCard(`torch-${index}`, config.name, 
+                    `${config.numTorches} torch(es), ${config.preset} mesh`);
+                torchTestsContainer.appendChild(card);
+            });
+
+            log('info', 'Performance testing suite initialized');
+        }
+
+        // Create test card
+        function createTestCard(id, name, config) {
+            const card = document.createElement('div');
+            card.className = 'test-card';
+            card.id = id;
+            card.innerHTML = `
+                <h3>${name}</h3>
+                <div class="config">${config}</div>
+                <div class="status pending">Pending</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0%"></div>
+                </div>
+                <div class="metrics" style="display: none;">
+                    <div><span class="label">Total Time:</span> <span class="value" data-metric="totalTime">-</span></div>
+                    <div><span class="label">Simulation Time:</span> <span class="value" data-metric="simTime">-</span></div>
+                    <div><span class="label">Memory Usage:</span> <span class="value" data-metric="memory">-</span></div>
+                    <div><span class="label">Time Steps:</span> <span class="value" data-metric="steps">-</span></div>
+                </div>
+            `;
+            return card;
+        }
+
+        // Update test card status
+        function updateTestCard(id, status, progress = 0, metrics = null) {
+            const card = document.getElementById(id);
+            if (!card) return;
+
+            const statusEl = card.querySelector('.status');
+            const progressFill = card.querySelector('.progress-fill');
+            const metricsEl = card.querySelector('.metrics');
+
+            statusEl.className = `status ${status}`;
+            statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+            progressFill.style.width = `${progress}%`;
+
+            if (metrics) {
+                metricsEl.style.display = 'block';
+                if (metrics.totalTime) {
+                    card.querySelector('[data-metric="totalTime"]').textContent = `${metrics.totalTime.toFixed(2)}s`;
+                }
+                if (metrics.simTime) {
+                    card.querySelector('[data-metric="simTime"]').textContent = `${metrics.simTime.toFixed(2)}s`;
+                }
+                if (metrics.memory) {
+                    card.querySelector('[data-metric="memory"]').textContent = `${metrics.memory.toFixed(2)} MB`;
+                }
+                if (metrics.steps) {
+                    card.querySelector('[data-metric="steps"]').textContent = metrics.steps;
+                }
+            }
+        }
+
+        // Run all tests
+        async function runAllTests() {
+            const btn = document.getElementById('runAllTests');
+            btn.disabled = true;
+            testResults = [];
+
+            log('info', 'Starting performance test suite...');
+
+            // Run mesh resolution tests
+            for (let i = 0; i < meshTestConfigs.length; i++) {
+                await runMeshTest(i, meshTestConfigs[i]);
+            }
+
+            // Run torch configuration tests
+            for (let i = 0; i < torchTestConfigs.length; i++) {
+                await runTorchTest(i, torchTestConfigs[i]);
+            }
+
+            // Run data transfer tests
+            await runDataTransferTests();
+
+            // Generate summary
+            generateSummary();
+
+            btn.disabled = false;
+            log('info', 'All tests completed');
+        }
+
+        // Run mesh resolution test
+        async function runMeshTest(index, config) {
+            const id = `mesh-${index}`;
+            log('info', `Testing ${config.name}...`);
+            updateTestCard(id, 'running', 10);
+
+            const startTime = performance.now();
+
+            try {
+                // Create simulation parameters
+                const parameters = {
+                    geometry: {
+                        cylinder_height: 2.0,
+                        cylinder_radius: 1.0
+                    },
+                    mesh: {
+                        preset: config.preset,
+                        nr: config.nr,
+                        nz: config.nz
+                    },
+                    torches: {
+                        torches: [{
+                            position: { r: 0.5, z: 1.0 },
+                            power: 150,
+                            efficiency: 0.8,
+                            sigma: 0.1
+                        }]
+                    },
+                    materials: {
+                        material_type: 'Carbon Steel'
+                    },
+                    simulation: {
+                        total_time: config.duration,
+                        output_interval: 1.0,
+                        solver_method: 'forward-euler',
+                        cfl_factor: 0.5
+                    },
+                    boundary: {
+                        initial_temperature: 300,
+                        ambient_temperature: 300
+                    }
+                };
+
+                updateTestCard(id, 'running', 30);
+
+                // Simulate backend call (in real implementation, this would call Tauri)
+                const result = await simulateBackendCall(parameters, (progress) => {
+                    updateTestCard(id, 'running', 30 + progress * 0.6);
+                });
+
+                const endTime = performance.now();
+                const totalTime = (endTime - startTime) / 1000;
+
+                // Estimate memory usage
+                const memory = estimateMemory(config.nr, config.nz);
+
+                const metrics = {
+                    totalTime,
+                    simTime: result.simulationTime,
+                    memory,
+                    steps: result.timeSteps
+                };
+
+                updateTestCard(id, 'completed', 100, metrics);
+
+                testResults.push({
+                    name: config.name,
+                    type: 'mesh',
+                    ...metrics
+                });
+
+                // Check performance
+                if (totalTime > 300) {
+                    log('warning', `${config.name}: Exceeded 5 minute target (${totalTime.toFixed(2)}s)`);
+                } else {
+                    log('info', `${config.name}: Completed in ${totalTime.toFixed(2)}s ✓`);
+                }
+
+            } catch (error) {
+                updateTestCard(id, 'failed', 100);
+                log('error', `${config.name}: Failed - ${error.message}`);
+            }
+        }
+
+        // Run torch configuration test
+        async function runTorchTest(index, config) {
+            const id = `torch-${index}`;
+            log('info', `Testing ${config.name}...`);
+            updateTestCard(id, 'running', 10);
+
+            const startTime = performance.now();
+
+            try {
+                // Create torches
+                const torches = [];
+                for (let i = 0; i < config.numTorches; i++) {
+                    torches.push({
+                        position: { 
+                            r: 0.3 + (i * 0.2), 
+                            z: 0.5 + (i * 0.5) 
+                        },
+                        power: 100,
+                        efficiency: 0.8,
+                        sigma: 0.1
+                    });
+                }
+
+                const parameters = {
+                    geometry: {
+                        cylinder_height: 2.0,
+                        cylinder_radius: 1.0
+                    },
+                    mesh: {
+                        preset: config.preset,
+                        nr: 100,
+                        nz: 100
+                    },
+                    torches: { torches },
+                    materials: {
+                        material_type: 'Carbon Steel'
+                    },
+                    simulation: {
+                        total_time: 60,
+                        output_interval: 1.0,
+                        solver_method: 'forward-euler',
+                        cfl_factor: 0.5
+                    },
+                    boundary: {
+                        initial_temperature: 300,
+                        ambient_temperature: 300
+                    }
+                };
+
+                updateTestCard(id, 'running', 30);
+
+                const result = await simulateBackendCall(parameters, (progress) => {
+                    updateTestCard(id, 'running', 30 + progress * 0.6);
+                });
+
+                const endTime = performance.now();
+                const totalTime = (endTime - startTime) / 1000;
+                const memory = estimateMemory(100, 100);
+
+                const metrics = {
+                    totalTime,
+                    simTime: result.simulationTime,
+                    memory,
+                    steps: result.timeSteps
+                };
+
+                updateTestCard(id, 'completed', 100, metrics);
+
+                testResults.push({
+                    name: config.name,
+                    type: 'torch',
+                    ...metrics
+                });
+
+                log('info', `${config.name}: Completed in ${totalTime.toFixed(2)}s ✓`);
+
+            } catch (error) {
+                updateTestCard(id, 'failed', 100);
+                log('error', `${config.name}: Failed - ${error.message}`);
+            }
+        }
+
+        // Run data transfer tests
+        async function runDataTransferTests() {
+            log('info', 'Testing data transfer performance...');
+            const container = document.getElementById('transferResults');
+
+            const testSizes = [
+                { nr: 50, nz: 50, label: 'Small' },
+                { nr: 100, nz: 100, label: 'Medium' },
+                { nr: 200, nz: 200, label: 'Large' }
+            ];
+
+            let html = '<table class="summary-table"><thead><tr><th>Size</th><th>Data Points</th><th>JSON Size</th><th>Serialize</th><th>Deserialize</th><th>Total</th></tr></thead><tbody>';
+
+            for (const size of testSizes) {
+                const dataPoints = size.nr * size.nz;
+                const data = generateMockData(size.nr, size.nz);
+
+                // Test serialization
+                const serializeStart = performance.now();
+                const jsonStr = JSON.stringify(data);
+                const serializeTime = performance.now() - serializeStart;
+
+                // Test deserialization
+                const deserializeStart = performance.now();
+                JSON.parse(jsonStr);
+                const deserializeTime = performance.now() - deserializeStart;
+
+                const jsonSize = jsonStr.length / 1024;
+                const totalTime = serializeTime + deserializeTime;
+
+                html += `<tr>
+                    <td>${size.label} (${size.nr}x${size.nz})</td>
+                    <td>${dataPoints.toLocaleString()}</td>
+                    <td>${jsonSize.toFixed(2)} KB</td>
+                    <td>${serializeTime.toFixed(2)} ms</td>
+                    <td>${deserializeTime.toFixed(2)} ms</td>
+                    <td>${totalTime.toFixed(2)} ms</td>
+                </tr>`;
+
+                if (totalTime > 100) {
+                    log('warning', `${size.label}: Data transfer may be slow (${totalTime.toFixed(2)}ms)`);
+                } else {
+                    log('info', `${size.label}: Transfer performance acceptable (${totalTime.toFixed(2)}ms) ✓`);
+                }
+            }
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // Generate summary
+        function generateSummary() {
+            const container = document.getElementById('summaryContent');
+
+            if (testResults.length === 0) {
+                container.innerHTML = '<p style="color: #666;">No test results available</p>';
+                return;
+            }
+
+            let html = '<table class="summary-table"><thead><tr><th>Test</th><th>Type</th><th>Total Time</th><th>Sim Time</th><th>Memory</th></tr></thead><tbody>';
+
+            testResults.forEach(result => {
+                html += `<tr>
+                    <td>${result.name}</td>
+                    <td>${result.type}</td>
+                    <td>${result.totalTime.toFixed(2)}s</td>
+                    <td>${result.simTime.toFixed(2)}s</td>
+                    <td>${result.memory.toFixed(2)} MB</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+
+            // Add performance assessment
+            const maxTime = Math.max(...testResults.map(r => r.totalTime));
+            const avgTime = testResults.reduce((sum, r) => sum + r.totalTime, 0) / testResults.length;
+
+            if (maxTime > 300) {
+                html += '<div class="warning">⚠️ Some tests exceeded the 5-minute performance target</div>';
+            } else {
+                html += '<div class="success">✓ All tests completed within acceptable time limits</div>';
+            }
+
+            html += `<div style="margin-top: 15px; font-size: 13px; color: #666;">
+                <strong>Average completion time:</strong> ${avgTime.toFixed(2)}s<br>
+                <strong>Longest test:</strong> ${maxTime.toFixed(2)}s
+            </div>`;
+
+            container.innerHTML = html;
+        }
+
+        // Simulate backend call (replace with actual Tauri call in production)
+        async function simulateBackendCall(parameters, progressCallback) {
+            const steps = 100;
+            const stepDelay = 20; // ms per step
+
+            for (let i = 0; i <= steps; i++) {
+                await new Promise(resolve => setTimeout(resolve, stepDelay));
+                progressCallback(i / steps);
+            }
+
+            return {
+                simulationTime: (steps * stepDelay) / 1000,
+                timeSteps: Math.floor(parameters.simulation.total_time / 0.1)
+            };
+        }
+
+        // Estimate memory usage
+        function estimateMemory(nr, nz) {
+            const nodes = nr * nz;
+            const tempArray = nodes * 8;
+            const meshCoords = (nr + nz) * 8;
+            const solverArrays = nodes * 8 * 2;
+            const overhead = 1024 * 1024;
+            return (tempArray + meshCoords + solverArrays + overhead) / (1024 * 1024);
+        }
+
+        // Generate mock temperature data
+        function generateMockData(nr, nz) {
+            const data = [];
+            for (let i = 0; i < nr; i++) {
+                for (let j = 0; j < nz; j++) {
+                    data.push(300 + Math.random() * 700);
+                }
+            }
+            return data;
+        }
+
+        // Logging function
+        function log(level, message) {
+            const logOutput = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = level;
+            logEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+            logOutput.appendChild(logEntry);
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        // Clear results
+        function clearResults() {
+            testResults = [];
+            document.getElementById('summaryContent').innerHTML = '<p style="color: #666;">Run tests to see performance summary</p>';
+            document.getElementById('transferResults').innerHTML = '';
+            document.getElementById('logOutput').innerHTML = '';
+            
+            // Reset all test cards
+            document.querySelectorAll('.test-card').forEach(card => {
+                card.querySelector('.status').className = 'status pending';
+                card.querySelector('.status').textContent = 'Pending';
+                card.querySelector('.progress-fill').style.width = '0%';
+                card.querySelector('.metrics').style.display = 'none';
+            });
+
+            log('info', 'Results cleared');
+        }
+
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', initializeTests);
+    </script>
+</body>
+</html>

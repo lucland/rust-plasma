@@ -172,7 +172,7 @@ mod tests {
             config: crate::simulation::SimulationConfig::default(),
             completed_at: chrono::Utc::now(),
             duration: 0.0,
-            final_temperature_field: vec![vec![300.0; 10]; 10],
+            final_temperature_field: vec![vec![300.0; 20]; 10],  // Match mesh dimensions: nr=10, nz=20
             time_steps_completed: 100,
             final_time: 60.0,
             energy_monitor: crate::simulation::EnergyMonitor::new(),
@@ -182,7 +182,7 @@ mod tests {
         };
         let mesh = crate::simulation::CylindricalMesh::new(1.0, 2.0, 10, 20).unwrap();
         let data = manager.prepare_3d_data(&results, &mesh).unwrap();
-        assert!(data.mesh_points.is_empty());
+        assert!(!data.mesh_points.is_empty());  // Should have mesh points
     }
     
     #[test]

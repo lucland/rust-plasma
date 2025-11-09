@@ -163,6 +163,12 @@ class ErrorDisplay {
                             Reload Application
                         </button>
                     </div>
+                ` : errorInfo.retryable ? `
+                    <div class="error-actions">
+                        <button class="btn btn-secondary error-action" data-action="retry">
+                            Retry
+                        </button>
+                    </div>
                 ` : ''}
             </div>
         `;
