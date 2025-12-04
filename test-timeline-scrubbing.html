@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timeline Scrubbing Test</title>
+    <link rel="stylesheet" href="src-tauri/ui/css/main.css">
+    <style>
+        body {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .test-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .test-description {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        
+        .test-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .log-container {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.875rem;
+        }
+        
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .log-time {
+            color: #666;
+            margin-right: 10px;
+        }
+        
+        .log-event {
+            color: #007bff;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .status-playing {
+            background: #28a745;
+            color: white;
+        }
+        
+        .status-paused {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .status-scrubbing {
+            background: #ffc107;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1 class="test-title">Timeline Scrubbing Test</h1>
+        <p class="test-description">
+            This test verifies the timeline scrubbing functionality including:
+            mouse/touch event handling, automatic pause during scrubbing, real-time visualization updates,
+            time markers, and snap-to-frame behavior.
+        </p>
+        
+        <div id="animation-controls-container"></div>
+        
+        <div class="test-controls">
+            <button class="btn btn-primary" onclick="initializeTest()">Initialize Animation</button>
+            <button class="btn btn-secondary" onclick="simulatePlayback()">Simulate Playback</button>
+            <button class="btn btn-secondary" onclick="clearLog()">Clear Log</button>
+            <span id="status-indicator" class="status-indicator status-paused">PAUSED</span>
+        </div>
+        
+        <div class="log-container" id="log-container">
+            <div class="log-entry">
+                <span class="log-time">--:--:--</span>
+                <span class="log-event">READY</span>
+                <span>Test initialized. Click "Initialize Animation" to begin.</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="src-tauri/ui/js/core/eventBus.js"></script>
+    <script src="src-tauri/ui/js/core/data-cache.js"></script>
+    <script src="src-tauri/ui/js/components/animation.js"></script>
+    <script src="src-tauri/ui/js/components/animationUI.js"></script>
+
+    <script>
+        // Test setup
+        let eventBus;
+        let animationController;
+        let animationUI;
+        let dataCacheManager;
+        
+        function log(event, message, data = null) {
+            const container = document.getElementById('log-container');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            
+            const time = new Date().toLocaleTimeString();
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'log-time';
+            timeSpan.textContent = time;
+            
+            const eventSpan = document.createElement('span');
+            eventSpan.className = 'log-event';
+            eventSpan.textContent = event;
+            
+            const messageSpan = document.createElement('span');
+            messageSpan.textContent = message;
+            if (data) {
+                messageSpan.textContent += ' ' + JSON.stringify(data);
+            }
+            
+            entry.appendChild(timeSpan);
+            entry.appendChild(eventSpan);
+            entry.appendChild(messageSpan);
+            
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function updateStatus(status) {
+            const indicator = document.getElementById('status-indicator');
+            indicator.className = 'status-indicator';
+            
+            if (status === 'playing') {
+                indicator.classList.add('status-playing');
+                indicator.textContent = 'PLAYING';
+            } else if (status === 'scrubbing') {
+                indicator.classList.add('status-scrubbing');
+                indicator.textContent = 'SCRUBBING';
+            } else {
+                indicator.classList.add('status-paused');
+                indicator.textContent = 'PAUSED';
+            }
+        }
+        
+        function clearLog() {
+            const container = document.getElementById('log-container');
+            container.innerHTML = '';
+            log('CLEAR', 'Log cleared');
+        }
+        
+        async function initializeTest() {
+            log('INIT', 'Initializing test components...');
+            
+            // Create event bus
+            eventBus = new EventBus();
+            log('INIT', 'EventBus created');
+            
+            // Create mock data cache manager
+            dataCacheManager = {
+                initialize: async (simId, metadata) => {
+                    log('CACHE', 'DataCacheManager initialized', { simId, metadata });
+                    return true;
+                },
+                getTimeStepData: async (timeStep) => {
+                    log('CACHE', `Loading frame ${timeStep}`);
+                    // Simulate loading delay
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                    return {
+                        time: timeStep * 0.5,
+                        temperature_grid: [[100, 200], [300, 400]],
+                        step_index: timeStep
+                    };
+                },
+                preloadFrames: (currentStep, direction) => {
+                    log('CACHE', `Preloading frames from ${currentStep} (${direction})`);
+                },
+                getCacheStatus: () => ({
+                    cachedFrames: 10,
+                    totalFrames: 120,
+                    memoryUsage: 5.2
+                }),
+                clearCache: () => {
+                    log('CACHE', 'Cache cleared');
+                }
+            };
+            
+            // Create animation controller
+            animationController = new AnimationController(eventBus, dataCacheManager);
+            log('INIT', 'AnimationController created');
+            
+            // Create animation UI
+            const container = document.getElementById('animation-controls-container');
+            animationUI = new AnimationUI(container, animationController, eventBus);
+            animationUI.render();
+            log('INIT', 'AnimationUI rendered');
+            
+            // Set up event listeners for logging
+            eventBus.on('animation:initialized', (data) => {
+                log('EVENT', 'Animation initialized', data);
+            });
+            
+            eventBus.on('animation:play', (data) => {
+                log('EVENT', 'Animation playing', data);
+                updateStatus('playing');
+            });
+            
+            eventBus.on('animation:pause', (data) => {
+                log('EVENT', 'Animation paused', data);
+                updateStatus('paused');
+            });
+            
+            eventBus.on('animation:timeChanged', (data) => {
+                log('EVENT', 'Time changed', { 
+                    timeStep: data.timeStep, 
+                    time: data.time.toFixed(2) + 's',
+                    progress: (data.progress * 100).toFixed(1) + '%'
+                });
+            });
+            
+            eventBus.on('animation:frame-loading', (data) => {
+                log('EVENT', 'Frame loading', data);
+            });
+            
+            eventBus.on('animation:frame-loaded', (data) => {
+                log('EVENT', 'Frame loaded', { timeStep: data.timeStep });
+            });
+            
+            // Initialize with mock metadata
+            const mockMetadata = {
+                total_time_steps: 120,
+                simulation_duration: 60.0,
+                time_interval: 0.5,
+                temperature_range: [300, 3000],
+                mesh_dimensions: [50, 100],
+                furnace_dimensions: [0.5, 1.0]
+            };
+            
+            await animationController.initializeWithData('test-sim-001', mockMetadata);
+            animationUI.show();
+            
+            log('INIT', 'Test initialization complete!');
+            log('INFO', 'Try scrubbing the timeline slider to test the functionality');
+        }
+        
+        function simulatePlayback() {
+            if (!animationController) {
+                log('ERROR', 'Animation not initialized. Click "Initialize Animation" first.');
+                return;
+            }
+            
+            const state = animationController.getState();
+            if (state.isPlaying) {
+                animationController.pause();
+                log('ACTION', 'Playback paused');
+            } else {
+                animationController.play();
+                log('ACTION', 'Playback started');
+            }
+        }
+        
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            log('READY', 'Page loaded. Ready for testing.');
+        });
+    </script>
+</body>
+</html>

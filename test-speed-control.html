@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animation Speed Control Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        h2 {
+            color: #666;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        
+        .test-result.pass {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .test-result.fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .test-result.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .controls {
+            margin: 15px 0;
+        }
+        
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .speed-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+            margin: 10px 0;
+        }
+        
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+        }
+        
+        .log-entry.speed-change {
+            color: #007bff;
+        }
+        
+        .log-entry.persist {
+            color: #28a745;
+        }
+        
+        .log-entry.load {
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 Animation Speed Control Test</h1>
+    <p>Testing playback speed control with persistence across sessions</p>
+
+    <div class="test-section">
+        <h2>Test 1: Speed Control Functionality</h2>
+        <div id="test1-results"></div>
+        <button onclick="runTest1()">Run Test 1</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Speed Persistence</h2>
+        <div id="test2-results"></div>
+        <button onclick="runTest2()">Run Test 2</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Interactive Speed Control</h2>
+        <div class="controls">
+            <label>Select Speed: 
+                <select id="speed-selector" onchange="handleSpeedChange()">
+                    <option value="0.5">0.5x</option>
+                    <option value="1.0" selected>1.0x</option>
+                    <option value="2.0">2.0x</option>
+                    <option value="5.0">5.0x</option>
+                    <option value="10.0">10.0x</option>
+                </select>
+            </label>
+        </div>
+        <div class="speed-display">Current Speed: <span id="current-speed">1.0x</span></div>
+        <div id="test3-results"></div>
+        <button onclick="clearPersistedSpeed()">Clear Persisted Speed</button>
+        <button onclick="reloadPage()">Reload Page (Test Persistence)</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Event Log</h2>
+        <div id="event-log" class="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <!-- Load the animation controller -->
+    <script src="src-tauri/ui/js/core/eventBus.js"></script>
+    <script src="src-tauri/ui/js/components/animation.js"></script>
+
+    <script>
+        // Initialize event bus and animation controller
+        const eventBus = new EventBus();
+        const animationController = new AnimationController(eventBus);
+        
+        // Log events
+        const logContainer = document.getElementById('event-log');
+        
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        function clearLog() {
+            logContainer.innerHTML = '';
+        }
+        
+        // Listen to speed change events
+        eventBus.on('animation:speedChanged', (data) => {
+            addLog(`Speed changed to ${data.speed}x`, 'speed-change');
+            document.getElementById('current-speed').textContent = `${data.speed}x`;
+        });
+        
+        // Test 1: Basic speed control functionality
+        function runTest1() {
+            const resultsDiv = document.getElementById('test1-results');
+            resultsDiv.innerHTML = '';
+            
+            const tests = [
+                { speed: 0.5, expected: 0.5, name: 'Set speed to 0.5x' },
+                { speed: 1.0, expected: 1.0, name: 'Set speed to 1.0x' },
+                { speed: 2.0, expected: 2.0, name: 'Set speed to 2.0x' },
+                { speed: 5.0, expected: 5.0, name: 'Set speed to 5.0x' },
+                { speed: 10.0, expected: 10.0, name: 'Set speed to 10.0x' },
+                { speed: 0.1, expected: 0.5, name: 'Clamp too low speed (0.1 -> 0.5)' },
+                { speed: 20.0, expected: 10.0, name: 'Clamp too high speed (20.0 -> 10.0)' }
+            ];
+            
+            let passed = 0;
+            let failed = 0;
+            
+            tests.forEach(test => {
+                animationController.setSpeed(test.speed);
+                const actualSpeed = animationController.getState().animationSpeed;
+                const success = actualSpeed === test.expected;
+                
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `test-result ${success ? 'pass' : 'fail'}`;
+                resultDiv.textContent = `${success ? '✓' : '✗'} ${test.name}: ${actualSpeed} ${success ? '==' : '!='} ${test.expected}`;
+                resultsDiv.appendChild(resultDiv);
+                
+                if (success) passed++;
+                else failed++;
+                
+                addLog(`Test: ${test.name} - ${success ? 'PASS' : 'FAIL'}`, success ? 'persist' : 'fail');
+            });
+            
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = `test-result ${failed === 0 ? 'pass' : 'fail'}`;
+            summaryDiv.textContent = `Summary: ${passed} passed, ${failed} failed`;
+            resultsDiv.appendChild(summaryDiv);
+        }
+        
+        // Test 2: Speed persistence
+        function runTest2() {
+            const resultsDiv = document.getElementById('test2-results');
+            resultsDiv.innerHTML = '';
+            
+            // Test setting and persisting different speeds
+            const testSpeeds = [0.5, 1.0, 2.0, 5.0, 10.0];
+            let allPassed = true;
+            
+            testSpeeds.forEach(speed => {
+                // Set speed
+                animationController.setSpeed(speed);
+                addLog(`Set speed to ${speed}x`, 'speed-change');
+                
+                // Check if persisted
+                const persisted = localStorage.getItem('animation_playback_speed');
+                const persistedSpeed = parseFloat(persisted);
+                const success = persistedSpeed === speed;
+                
+                const resultDiv = document.createElement('div');
+                resultDiv.className = `test-result ${success ? 'pass' : 'fail'}`;
+                resultDiv.textContent = `${success ? '✓' : '✗'} Persist ${speed}x: localStorage = ${persisted}`;
+                resultsDiv.appendChild(resultDiv);
+                
+                if (!success) allPassed = false;
+                addLog(`Persisted ${speed}x to localStorage`, 'persist');
+            });
+            
+            // Test loading persisted speed
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'test-result info';
+            infoDiv.textContent = `ℹ Current persisted speed: ${localStorage.getItem('animation_playback_speed')}x`;
+            resultsDiv.appendChild(infoDiv);
+            
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = `test-result ${allPassed ? 'pass' : 'fail'}`;
+            summaryDiv.textContent = allPassed ? '✓ All persistence tests passed' : '✗ Some persistence tests failed';
+            resultsDiv.appendChild(summaryDiv);
+        }
+        
+        // Test 3: Interactive speed control
+        function handleSpeedChange() {
+            const selector = document.getElementById('speed-selector');
+            const speed = parseFloat(selector.value);
+            animationController.setSpeed(speed);
+            
+            const resultsDiv = document.getElementById('test3-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result pass';
+            resultDiv.textContent = `✓ Speed changed to ${speed}x and persisted`;
+            resultsDiv.appendChild(resultDiv);
+            
+            // Keep only last 5 results
+            while (resultsDiv.children.length > 5) {
+                resultsDiv.removeChild(resultsDiv.firstChild);
+            }
+        }
+        
+        function clearPersistedSpeed() {
+            localStorage.removeItem('animation_playback_speed');
+            addLog('Cleared persisted speed from localStorage', 'persist');
+            
+            const resultsDiv = document.getElementById('test3-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result info';
+            resultDiv.textContent = 'ℹ Persisted speed cleared. Reload page to test default speed (1.0x)';
+            resultsDiv.appendChild(resultDiv);
+        }
+        
+        function reloadPage() {
+            addLog('Reloading page to test persistence...', 'load');
+            setTimeout(() => {
+                window.location.reload();
+            }, 500);
+        }
+        
+        // On page load, check for persisted speed
+        window.addEventListener('DOMContentLoaded', () => {
+            const persistedSpeed = localStorage.getItem('animation_playback_speed');
+            const currentSpeed = animationController.getState().animationSpeed;
+            
+            if (persistedSpeed) {
+                addLog(`Loaded persisted speed: ${persistedSpeed}x`, 'load');
+                document.getElementById('speed-selector').value = persistedSpeed;
+                document.getElementById('current-speed').textContent = `${persistedSpeed}x`;
+            } else {
+                addLog('No persisted speed found, using default: 1.0x', 'load');
+            }
+            
+            addLog(`Animation controller initialized with speed: ${currentSpeed}x`, 'info');
+        });
+    </script>
+</body>
+</html>

@@ -179,6 +179,7 @@ mod tests {
             max_temperature: 400.0,
             min_temperature: 300.0,
             avg_temperature: 350.0,
+            time_series_data: None,
         };
         let mesh = crate::simulation::CylindricalMesh::new(1.0, 2.0, 10, 20).unwrap();
         let data = manager.prepare_3d_data(&results, &mesh).unwrap();

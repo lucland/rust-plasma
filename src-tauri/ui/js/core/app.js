@@ -143,11 +143,12 @@ class App {
             const animationController = new AnimationController(this.eventBus);
             this.registerComponent('animation', animationController);
 
-            // Initialize animation UI
+            // Initialize animation UI (pass visualization panel reference for export functionality)
             const animationContainer = document.getElementById('visualization-panel');
             if (animationContainer) {
-                const animationUI = new AnimationUI(animationContainer, this.eventBus, animationController);
-                await animationUI.init();
+                const visualizationPanel = this.getComponent('visualization');
+                const animationUI = new AnimationUI(animationContainer, animationController, this.eventBus, visualizationPanel);
+                animationUI.render();
                 this.registerComponent('animationUI', animationUI);
             }
 

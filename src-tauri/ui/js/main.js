@@ -282,13 +282,29 @@ function initializeComponents() {
         });
     }
     
-    // Initialize animation controller
+    // Initialize data cache manager first (needed by animation controller)
+    console.log('💾 [MAIN] Initializing DataCacheManager...');
+    if (app && app.eventBus) {
+        try {
+            const dataCacheManager = new DataCacheManager(app.eventBus, 50);
+            app.registerComponent('dataCacheManager', dataCacheManager);
+            console.log('✅ [MAIN] DataCacheManager component initialized successfully');
+        } catch (error) {
+            console.error('❌ [MAIN] Failed to create DataCacheManager:', error);
+        }
+    } else {
+        console.error('❌ [MAIN] Failed to initialize DataCacheManager - missing eventBus');
+    }
+    
+    // Initialize animation controller with data cache manager
     console.log('🎬 [MAIN] Initializing AnimationController...');
     if (app && app.eventBus) {
         try {
-            const animationController = new AnimationController(app.eventBus);
+            const dataCacheManager = app.getComponent('dataCacheManager');
+            const animationController = new AnimationController(app.eventBus, dataCacheManager);
             app.registerComponent('animation', animationController);
             console.log('✅ [MAIN] AnimationController component initialized successfully');
+            console.log('🔗 [MAIN] AnimationController connected to DataCacheManager');
         } catch (error) {
             console.error('❌ [MAIN] Failed to create AnimationController:', error);
         }
@@ -298,20 +314,62 @@ function initializeComponents() {
     
     // Initialize animation UI
     console.log('🎬 [MAIN] Initializing AnimationUI...');
-    const animationControlsContainer = document.getElementById('animation-controls');
-    console.log('🎬 [MAIN] Animation controls container found:', !!animationControlsContainer);
+    const visualizationPanelElement = document.getElementById('visualization-panel');
+    console.log('🎬 [MAIN] Visualization panel element found:', !!visualizationPanelElement);
     
-    if (animationControlsContainer && app && app.eventBus) {
+    if (visualizationPanelElement && app && app.eventBus) {
         try {
-            const animationUI = new AnimationUI(animationControlsContainer, app.eventBus);
-            app.registerComponent('animationUI', animationUI);
-            console.log('✅ [MAIN] AnimationUI component initialized successfully');
+            // Get animation controller and visualization panel
+            const animationController = app.getComponent('animation');
+            if (animationController) {
+                // Pass visualization panel reference to AnimationUI for coordination
+                const animationUI = new AnimationUI(
+                    visualizationPanelElement, 
+                    animationController, 
+                    app.eventBus,
+                    visualizationPanel  // Pass visualization panel for frame coordination
+                );
+                app.registerComponent('animationUI', animationUI);
+                
+                // Render the UI controls
+                animationUI.render();
+                
+                console.log('✅ [MAIN] AnimationUI component initialized and rendered successfully');
+                console.log('🔗 [MAIN] AnimationUI connected to VisualizationPanel');
+            } else {
+                console.error('❌ [MAIN] AnimationController not available for AnimationUI');
+            }
         } catch (error) {
             console.error('❌ [MAIN] Failed to create AnimationUI:', error);
         }
     } else {
         console.error('❌ [MAIN] Failed to initialize AnimationUI - missing dependencies:', {
-            container: !!animationControlsContainer,
+            container: !!visualizationPanelElement,
+            app: !!app,
+            eventBus: !!(app && app.eventBus)
+        });
+    }
+    
+    // Initialize metadata display
+    console.log('📊 [MAIN] Initializing MetadataDisplay...');
+    const visualizationContainerElement = document.getElementById('visualization-container');
+    console.log('📊 [MAIN] Visualization container element found:', !!visualizationContainerElement);
+    
+    if (visualizationContainerElement && app && app.eventBus) {
+        try {
+            const metadataDisplay = new MetadataDisplay(visualizationContainerElement, app.eventBus);
+            app.registerComponent('metadataDisplay', metadataDisplay);
+            
+            // Render the metadata overlay
+            metadataDisplay.render();
+            
+            console.log('✅ [MAIN] MetadataDisplay component initialized and rendered successfully');
+        } catch (error) {
+            console.error('❌ [MAIN] Failed to create MetadataDisplay:', error);
+        }
+    } else {
+        console.error('❌ [MAIN] Failed to initialize MetadataDisplay - missing dependencies:', {
+            container: !!visualizationContainerElement,
             app: !!app,
             eventBus: !!(app && app.eventBus)
         });
@@ -816,6 +874,8 @@ function setupStateIntegration() {
     app.eventBus.on('animation:speedChanged', handleAnimationSpeedChanged);
     app.eventBus.on('animation:ended', handleAnimationEnded);
     app.eventBus.on('animation:error', handleAnimationError);
+    app.eventBus.on('animation:frame-loaded', handleAnimationFrameLoaded);
+    app.eventBus.on('animation:frame-loading', handleAnimationFrameLoading);
     
     console.log('State integration set up successfully');
 }
@@ -1068,13 +1128,13 @@ function handleSimulationProgress(data) {
 
 /**
  * Handle simulation completion event from controller
- * Connect simulation completion to visualization loading
+ * Connect simulation completion to visualization loading and animation initialization
  */
-function handleSimulationCompletedEvent(data) {
+async function handleSimulationCompletedEvent(data) {
     console.log('[Main] Simulation completed, connecting to visualization:', data);
     
     if (!app || !app.appState) {
-        console.error('App not initialized');
+        console.error('[Main] App not initialized');
         return;
     }
     
@@ -1122,6 +1182,151 @@ function handleSimulationCompletedEvent(data) {
     }
     
     updateAppStatus('Simulation completed - loading visualization...');
+    
+    // Check if animation is needed (multiple time steps)
+    const results = data.results || {};
+    const hasMultipleTimeSteps = results.timeSteps && results.timeSteps.length > 1;
+    
+    if (!hasMultipleTimeSteps) {
+        console.log('[Main] Single time step result - animation not needed');
+        updateAppStatus('Visualization loaded');
+        return;
+    }
+    
+    // Wire up animation controls to simulation completion
+    // This implements task 14: Wire up animation controls to simulation completion
+    try {
+        console.log('[Main] Task 14: Wiring up animation controls to simulation completion');
+        
+        // Step 1: Fetch animation metadata from backend
+        console.log('[Main] Step 1: Fetching animation metadata from backend...');
+        updateAppStatus('Loading animation data...');
+        
+        const simulationId = data.simulationId || 'current';
+        let metadata = null;
+        
+        try {
+            metadata = await window.__TAURI__.invoke('get_animation_metadata', {
+                simulationId: simulationId
+            });
+            console.log('[Main] Animation metadata fetched:', metadata);
+        } catch (error) {
+            console.error('[Main] Failed to fetch animation metadata:', error);
+            console.log('[Main] Falling back to creating metadata from results');
+            
+            // Fallback: Create metadata from results if backend call fails
+            const results = data.results || {};
+            if (results && results.timeSteps) {
+                metadata = {
+                    total_time_steps: results.timeSteps.length,
+                    simulation_duration: results.duration || 60,
+                    time_interval: results.duration / Math.max(1, results.timeSteps.length - 1),
+                    temperature_range: results.temperatureRange || { min: 300, max: 2000 },
+                    mesh_dimensions: results.meshData ? 
+                        [results.meshData.nr || 10, results.meshData.nz || 10] : 
+                        [10, 10],
+                    furnace_dimensions: results.meshData ?
+                        [results.meshData.radius || 1.0, results.meshData.height || 2.0] :
+                        [1.0, 2.0]
+                };
+                console.log('[Main] Created fallback metadata:', metadata);
+            } else {
+                throw new Error('Cannot create animation metadata: no results available');
+            }
+        }
+        
+        // Validate metadata
+        if (!metadata || !metadata.total_time_steps || metadata.total_time_steps < 1) {
+            throw new Error('Invalid animation metadata: missing or invalid total_time_steps');
+        }
+        
+        // Step 2: Initialize data cache manager
+        console.log('[Main] Step 2: Initializing data cache manager...');
+        const dataCacheManager = app.getComponent('dataCacheManager');
+        
+        if (!dataCacheManager) {
+            console.log('[Main] Creating new DataCacheManager instance...');
+            const newDataCacheManager = new DataCacheManager(app.eventBus, 50);
+            app.registerComponent('dataCacheManager', newDataCacheManager);
+            
+            // Set data cache manager on animation controller
+            const animationController = app.getComponent('animation');
+            if (animationController) {
+                animationController.setDataCacheManager(newDataCacheManager);
+                console.log('[Main] Data cache manager set on animation controller');
+            }
+        }
+        
+        const cacheManager = app.getComponent('dataCacheManager');
+        if (!cacheManager) {
+            throw new Error('Failed to create or retrieve DataCacheManager');
+        }
+        
+        // Step 3: Initialize animation controller with data
+        console.log('[Main] Step 3: Initializing animation controller with data...');
+        const animationController = app.getComponent('animation');
+        
+        if (!animationController) {
+            throw new Error('Animation controller not available');
+        }
+        
+        // Initialize animation with backend data
+        const animationInitialized = await animationController.initializeWithData(simulationId, metadata);
+        
+        if (!animationInitialized) {
+            throw new Error('Failed to initialize animation controller with data');
+        }
+        
+        console.log('[Main] Animation controller initialized successfully');
+        
+        // Step 4: Show animation controls after data loads
+        console.log('[Main] Step 4: Showing animation controls...');
+        const animationUI = app.getComponent('animationUI');
+        
+        if (animationUI) {
+            animationUI.show();
+            console.log('[Main] Animation controls shown');
+        } else {
+            console.warn('[Main] AnimationUI component not available');
+        }
+        
+        // Step 5: Enable playback controls when ready
+        console.log('[Main] Step 5: Enabling playback controls...');
+        if (animationUI) {
+            animationUI.enableControls(true);
+            console.log('[Main] Playback controls enabled');
+        }
+        
+        // Step 6: Set initial state to first frame (already done by initializeWithData)
+        console.log('[Main] Step 6: Initial state set to first frame');
+        
+        // Update status
+        updateAppStatus('Animation ready - playback enabled');
+        console.log('[Main] Task 14 completed: Animation controls wired up successfully');
+        
+        // Emit event to notify other components
+        app.eventBus.emit('animation:ready', {
+            simulationId: simulationId,
+            metadata: metadata,
+            totalTimeSteps: metadata.total_time_steps,
+            duration: metadata.simulation_duration
+        });
+        
+    } catch (error) {
+        console.error('[Main] Task 14 failed: Error wiring up animation controls:', error);
+        updateAppStatus(`Animation initialization failed: ${error.message}`);
+        
+        // Emit error event
+        app.eventBus.emit('animation:initialization-failed', {
+            error: error.message,
+            simulationId: data.simulationId
+        });
+        
+        // Show error to user
+        if (visualizationPanel) {
+            visualizationPanel.showError(`Failed to initialize animation: ${error.message}`);
+        }
+    }
 }
 
 /**
@@ -1613,4 +1818,37 @@ function handleAnimationEnded(data) {
 function handleAnimationError(data) {
     console.error('Animation error:', data);
     updateAppStatus(`Animation error: ${data.message}`);
+}
+
+/**
+ * Handle animation frame loading
+ * Task 15: Connect visualization panel to animation controller frame loading events
+ */
+function handleAnimationFrameLoading(data) {
+    console.log('[Main] Animation frame loading:', data.timeStep);
+    
+    // Show loading indicator in visualization if needed
+    if (visualizationPanel && visualizationPanel.showTimeStepLoading) {
+        visualizationPanel.showTimeStepLoading(data.timeStep);
+    }
+}
+
+/**
+ * Handle animation frame loaded
+ * Task 15: Connect visualization panel to animation controller frame loaded events
+ */
+function handleAnimationFrameLoaded(data) {
+    console.log('[Main] Animation frame loaded:', data.timeStep);
+    
+    // Hide loading indicator in visualization
+    if (visualizationPanel && visualizationPanel.hideTimeStepLoading) {
+        visualizationPanel.hideTimeStepLoading();
+    }
+    
+    // Update visualization to the loaded frame
+    if (visualizationPanel && data.data) {
+        // The visualization will be updated via animation:timeChanged event
+        // This handler is just for loading state management
+        console.log('[Main] Frame data available for time step:', data.timeStep);
+    }
 }

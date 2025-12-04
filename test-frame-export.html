@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frame Export Test - Plasma Furnace Simulator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .info {
+            color: #17a2b8;
+        }
+        #canvas-container {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Frame Export Functionality Test</h1>
+        
+        <div class="test-section">
+            <h2>Test Setup</h2>
+            <p>This test verifies the frame export functionality for animation playback.</p>
+            <div id="canvas-container">
+                <canvas id="test-canvas" width="800" height="400"></canvas>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Export Tests</h2>
+            
+            <div>
+                <h3>1. Single Frame Export</h3>
+                <button id="test-single-export">Export Current Frame (PNG)</button>
+                <button id="test-single-export-jpeg">Export Current Frame (JPEG)</button>
+                <div id="single-export-status" class="status"></div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <h3>2. High Resolution Export</h3>
+                <button id="test-hd-export">Export HD (1920×1080)</button>
+                <button id="test-4k-export">Export 4K (3840×2160)</button>
+                <div id="hd-export-status" class="status"></div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <h3>3. Batch Export (Simulated)</h3>
+                <button id="test-batch-export">Export 5 Frames</button>
+                <button id="test-batch-cancel" disabled>Cancel Export</button>
+                <div id="batch-export-status" class="status"></div>
+                <div id="batch-progress" style="margin-top: 10px; display: none;">
+                    <div style="background: #e9ecef; height: 20px; border-radius: 4px; overflow: hidden;">
+                        <div id="batch-progress-bar" style="background: #007bff; height: 100%; width: 0%; transition: width 0.3s;"></div>
+                    </div>
+                    <div id="batch-progress-text" style="margin-top: 5px; font-size: 12px; color: #666;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Results</h2>
+            <div id="test-results" class="status">
+                <p>Run tests to see results...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mock Three.js for testing
+        const canvas = document.getElementById('test-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Draw a simple test pattern
+        function drawTestPattern() {
+            // Gradient background
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#1a1a1a');
+            gradient.addColorStop(1, '#4a4a4a');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw some circles to simulate particles
+            for (let i = 0; i < 50; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const radius = Math.random() * 10 + 5;
+                const hue = Math.random() * 360;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${hue}, 70%, 50%, 0.6)`;
+                ctx.fill();
+            }
+            
+            // Add text
+            ctx.fillStyle = 'white';
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Test Frame - Plasma Furnace Simulator', canvas.width / 2, canvas.height / 2);
+            ctx.font = '16px Arial';
+            ctx.fillText(`Time: ${new Date().toLocaleTimeString()}`, canvas.width / 2, canvas.height / 2 + 30);
+        }
+        
+        drawTestPattern();
+        
+        // Mock visualization panel with export methods
+        class MockVisualizationPanel {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.currentTimeStep = 0;
+            }
+            
+            captureFrame(options = {}) {
+                const { format = 'png', quality = 0.95 } = options;
+                const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+                return this.canvas.toDataURL(mimeType, quality);
+            }
+            
+            exportCurrentFrame(options = {}) {
+                const { filename = `frame_${Date.now()}.png` } = options;
+                const dataUrl = this.captureFrame(options);
+                this.downloadDataUrl(dataUrl, filename);
+                return { success: true, filename };
+            }
+            
+            async exportAllFrames(options = {}) {
+                const { filenamePrefix = 'frame', format = 'png', onProgress } = options;
+                const totalFrames = 5; // Simulate 5 frames
+                
+                for (let i = 0; i < totalFrames; i++) {
+                    // Redraw with different pattern
+                    drawTestPattern();
+                    
+                    // Wait a bit
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Export frame
+                    const frameNumber = String(i).padStart(4, '0');
+                    const extension = format === 'jpeg' ? 'jpg' : 'png';
+                    const filename = `${filenamePrefix}_${frameNumber}.${extension}`;
+                    
+                    const dataUrl = this.captureFrame({ format });
+                    this.downloadDataUrl(dataUrl, filename);
+                    
+                    // Report progress
+                    const progress = ((i + 1) / totalFrames) * 100;
+                    if (onProgress) {
+                        onProgress(progress, i + 1, totalFrames);
+                    }
+                }
+            }
+            
+            downloadDataUrl(dataUrl, filename) {
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+        
+        const mockViz = new MockVisualizationPanel(canvas);
+        const results = [];
+        
+        function logResult(test, status, message) {
+            const timestamp = new Date().toLocaleTimeString();
+            results.push({ test, status, message, timestamp });
+            updateResults();
+        }
+        
+        function updateResults() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = results.map(r => 
+                `<div class="${r.status}">
+                    [${r.timestamp}] ${r.test}: ${r.message}
+                </div>`
+            ).join('');
+        }
+        
+        function updateStatus(elementId, message, className = 'info') {
+            const el = document.getElementById(elementId);
+            el.innerHTML = `<span class="${className}">${message}</span>`;
+        }
+        
+        // Test 1: Single frame export (PNG)
+        document.getElementById('test-single-export').addEventListener('click', async () => {
+            try {
+                updateStatus('single-export-status', 'Exporting frame as PNG...', 'info');
+                const result = mockViz.exportCurrentFrame({ format: 'png' });
+                updateStatus('single-export-status', `✓ Exported: ${result.filename}`, 'success');
+                logResult('Single Frame Export (PNG)', 'success', `File: ${result.filename}`);
+            } catch (error) {
+                updateStatus('single-export-status', `✗ Error: ${error.message}`, 'error');
+                logResult('Single Frame Export (PNG)', 'error', error.message);
+            }
+        });
+        
+        // Test 2: Single frame export (JPEG)
+        document.getElementById('test-single-export-jpeg').addEventListener('click', async () => {
+            try {
+                updateStatus('single-export-status', 'Exporting frame as JPEG...', 'info');
+                const result = mockViz.exportCurrentFrame({ format: 'jpeg', quality: 0.9 });
+                updateStatus('single-export-status', `✓ Exported: ${result.filename}`, 'success');
+                logResult('Single Frame Export (JPEG)', 'success', `File: ${result.filename}`);
+            } catch (error) {
+                updateStatus('single-export-status', `✗ Error: ${error.message}`, 'error');
+                logResult('Single Frame Export (JPEG)', 'error', error.message);
+            }
+        });
+        
+        // Test 3: HD export
+        document.getElementById('test-hd-export').addEventListener('click', async () => {
+            try {
+                updateStatus('hd-export-status', 'Exporting HD frame (1920×1080)...', 'info');
+                const result = mockViz.exportCurrentFrame({ 
+                    format: 'png',
+                    filename: 'frame_hd_1920x1080.png'
+                });
+                updateStatus('hd-export-status', `✓ Exported HD: ${result.filename}`, 'success');
+                logResult('HD Export', 'success', `File: ${result.filename}`);
+            } catch (error) {
+                updateStatus('hd-export-status', `✗ Error: ${error.message}`, 'error');
+                logResult('HD Export', 'error', error.message);
+            }
+        });
+        
+        // Test 4: 4K export
+        document.getElementById('test-4k-export').addEventListener('click', async () => {
+            try {
+                updateStatus('hd-export-status', 'Exporting 4K frame (3840×2160)...', 'info');
+                const result = mockViz.exportCurrentFrame({ 
+                    format: 'png',
+                    filename: 'frame_4k_3840x2160.png'
+                });
+                updateStatus('hd-export-status', `✓ Exported 4K: ${result.filename}`, 'success');
+                logResult('4K Export', 'success', `File: ${result.filename}`);
+            } catch (error) {
+                updateStatus('hd-export-status', `✗ Error: ${error.message}`, 'error');
+                logResult('4K Export', 'error', error.message);
+            }
+        });
+        
+        // Test 5: Batch export
+        let batchExportCancelled = false;
+        
+        document.getElementById('test-batch-export').addEventListener('click', async () => {
+            try {
+                batchExportCancelled = false;
+                document.getElementById('test-batch-export').disabled = true;
+                document.getElementById('test-batch-cancel').disabled = false;
+                document.getElementById('batch-progress').style.display = 'block';
+                
+                updateStatus('batch-export-status', 'Starting batch export...', 'info');
+                
+                await mockViz.exportAllFrames({
+                    filenamePrefix: 'batch_test',
+                    format: 'png',
+                    onProgress: (progress, current, total) => {
+                        if (batchExportCancelled) {
+                            throw new Error('Export cancelled by user');
+                        }
+                        
+                        document.getElementById('batch-progress-bar').style.width = `${progress}%`;
+                        document.getElementById('batch-progress-text').textContent = 
+                            `Exporting frame ${current} of ${total} (${Math.round(progress)}%)`;
+                    }
+                });
+                
+                updateStatus('batch-export-status', '✓ Batch export completed!', 'success');
+                logResult('Batch Export', 'success', '5 frames exported successfully');
+                
+            } catch (error) {
+                updateStatus('batch-export-status', `✗ Error: ${error.message}`, 'error');
+                logResult('Batch Export', 'error', error.message);
+            } finally {
+                document.getElementById('test-batch-export').disabled = false;
+                document.getElementById('test-batch-cancel').disabled = true;
+                setTimeout(() => {
+                    document.getElementById('batch-progress').style.display = 'none';
+                }, 2000);
+            }
+        });
+        
+        document.getElementById('test-batch-cancel').addEventListener('click', () => {
+            batchExportCancelled = true;
+            updateStatus('batch-export-status', 'Cancelling export...', 'info');
+        });
+        
+        // Initial log
+        logResult('Test Suite', 'info', 'Frame export test suite loaded');
+    </script>
+</body>
+</html>

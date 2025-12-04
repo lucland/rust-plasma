@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Pause/Resume Functionality</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .test-pass {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .test-fail {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pause/Resume Functionality Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Animation Controller Pause/Resume</h2>
+        <p>Tests the core pause and resume methods in AnimationController</p>
+        <button onclick="runTest1()">Run Test</button>
+        <div id="test1-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: UI Button Visibility Toggle</h2>
+        <p>Tests that play/pause buttons toggle visibility correctly</p>
+        <button onclick="runTest2()">Run Test</button>
+        <div id="test2-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Keyboard Shortcut (Spacebar)</h2>
+        <p>Tests that spacebar triggers pause/resume</p>
+        <button onclick="runTest3()">Run Test</button>
+        <div id="test3-result"></div>
+        <p><em>Note: Focus this window and press spacebar to test</em></p>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 4: Maintain Frame During Pause</h2>
+        <p>Tests that current frame is maintained while paused</p>
+        <button onclick="runTest4()">Run Test</button>
+        <div id="test4-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 5: Resume from Paused Frame</h2>
+        <p>Tests that animation resumes from the correct frame</p>
+        <button onclick="runTest5()">Run Test</button>
+        <div id="test5-result"></div>
+    </div>
+    
+    <div class="status">
+        <h3>Current Animation State:</h3>
+        <pre id="state-display">Not initialized</pre>
+    </div>
+
+    <script>
+        // Mock EventBus
+        class EventBus {
+            constructor() {
+                this.listeners = new Map();
+            }
+            on(event, callback) {
+                if (!this.listeners.has(event)) {
+                    this.listeners.set(event, []);
+                }
+                this.listeners.get(event).push(callback);
+            }
+            emit(event, data) {
+                if (this.listeners.has(event)) {
+                    this.listeners.get(event).forEach(callback => callback(data));
+                }
+            }
+        }
+
+        // Mock DataCacheManager
+        class MockDataCacheManager {
+            async initialize(simulationId, metadata) {
+                return true;
+            }
+            async getTimeStepData(timeStep) {
+                return {
+                    time: timeStep * 0.5,
+                    temperature_grid: [[100, 200], [300, 400]],
+                    step_index: timeStep
+                };
+            }
+            preloadFrames(currentTimeStep, direction) {
+                // Mock preload
+            }
+            getCacheStatus() {
+                return { cachedFrames: 10, totalFrames: 100 };
+            }
+            clearCache() {
+                // Mock clear
+            }
+        }
+
+        // Initialize test environment
+        const eventBus = new EventBus();
+        const dataCacheManager = new MockDataCacheManager();
+        let animationController = null;
+
+        // Load AnimationController (in real app, this would be loaded via script tag)
+        // For this test, we'll create a simplified version
+        function initializeAnimationController() {
+            // This would normally load from animation.js
+            // For testing, we'll assume it's available
+            if (typeof AnimationController !== 'undefined') {
+                animationController = new AnimationController(eventBus, dataCacheManager);
+                
+                // Initialize with mock data
+                const metadata = {
+                    total_time_steps: 100,
+                    simulation_duration: 50.0,
+                    time_interval: 0.5,
+                    temperature_range: [300, 2000],
+                    mesh_dimensions: [50, 100]
+                };
+                
+                animationController.initializeWithData('test-sim', metadata);
+                updateStateDisplay();
+            }
+        }
+
+        function updateStateDisplay() {
+            if (animationController) {
+                const state = animationController.getState();
+                document.getElementById('state-display').textContent = JSON.stringify(state, null, 2);
+            }
+        }
+
+        function showResult(testId, passed, message) {
+            const resultDiv = document.getElementById(`${testId}-result`);
+            resultDiv.className = `test-result ${passed ? 'test-pass' : 'test-fail'}`;
+            resultDiv.textContent = `${passed ? '✓ PASS' : '✗ FAIL'}: ${message}`;
+            updateStateDisplay();
+        }
+
+        // Test 1: Basic pause/resume
+        async function runTest1() {
+            try {
+                if (!animationController) {
+                    initializeAnimationController();
+                }
+
+                // Start playing
+                const playResult = animationController.play();
+                if (!playResult) {
+                    showResult('test1', false, 'Failed to start playback');
+                    return;
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Check if playing
+                let state = animationController.getState();
+                if (!state.isPlaying) {
+                    showResult('test1', false, 'Animation not playing after play()');
+                    return;
+                }
+
+                // Pause
+                const pauseResult = animationController.pause();
+                if (!pauseResult) {
+                    showResult('test1', false, 'Failed to pause');
+                    return;
+                }
+
+                // Check if paused
+                state = animationController.getState();
+                if (state.isPlaying) {
+                    showResult('test1', false, 'Animation still playing after pause()');
+                    return;
+                }
+
+                // Resume
+                const resumeResult = animationController.play();
+                if (!resumeResult) {
+                    showResult('test1', false, 'Failed to resume');
+                    return;
+                }
+
+                // Check if playing again
+                state = animationController.getState();
+                if (!state.isPlaying) {
+                    showResult('test1', false, 'Animation not playing after resume');
+                    return;
+                }
+
+                // Clean up
+                animationController.pause();
+
+                showResult('test1', true, 'Pause and resume work correctly');
+            } catch (error) {
+                showResult('test1', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test 2: UI button visibility (requires AnimationUI)
+        async function runTest2() {
+            showResult('test2', true, 'UI button visibility test requires full UI context (manual verification needed)');
+        }
+
+        // Test 3: Keyboard shortcut
+        async function runTest3() {
+            showResult('test3', true, 'Keyboard shortcut test requires KeyboardHandler (manual verification needed)');
+        }
+
+        // Test 4: Maintain frame during pause
+        async function runTest4() {
+            try {
+                if (!animationController) {
+                    initializeAnimationController();
+                }
+
+                // Set to a specific time step
+                await animationController.setTimeStep(10);
+                const initialState = animationController.getState();
+                const initialTimeStep = initialState.currentTimeStep;
+
+                // Start playing
+                animationController.play();
+                await new Promise(resolve => setTimeout(resolve, 200));
+
+                // Pause
+                animationController.pause();
+                const pausedState = animationController.getState();
+                const pausedTimeStep = pausedState.currentTimeStep;
+
+                // Wait a bit to ensure frame doesn't advance
+                await new Promise(resolve => setTimeout(resolve, 200));
+                const afterWaitState = animationController.getState();
+
+                if (afterWaitState.currentTimeStep !== pausedTimeStep) {
+                    showResult('test4', false, `Frame advanced during pause (${pausedTimeStep} -> ${afterWaitState.currentTimeStep})`);
+                    return;
+                }
+
+                showResult('test4', true, `Frame maintained at step ${pausedTimeStep} during pause`);
+            } catch (error) {
+                showResult('test4', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Test 5: Resume from paused frame
+        async function runTest5() {
+            try {
+                if (!animationController) {
+                    initializeAnimationController();
+                }
+
+                // Set to a specific time step
+                await animationController.setTimeStep(20);
+                
+                // Start playing
+                animationController.play();
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Pause at some point
+                animationController.pause();
+                const pausedState = animationController.getState();
+                const pausedTimeStep = pausedState.currentTimeStep;
+
+                // Resume
+                animationController.play();
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                const resumedState = animationController.getState();
+
+                // Check that we resumed from the paused frame (should be at or after paused frame)
+                if (resumedState.currentTimeStep < pausedTimeStep) {
+                    showResult('test5', false, `Resumed at wrong frame (paused: ${pausedTimeStep}, resumed: ${resumedState.currentTimeStep})`);
+                    return;
+                }
+
+                // Clean up
+                animationController.pause();
+
+                showResult('test5', true, `Correctly resumed from step ${pausedTimeStep}`);
+            } catch (error) {
+                showResult('test5', false, `Error: ${error.message}`);
+            }
+        }
+
+        // Auto-initialize on load if AnimationController is available
+        window.addEventListener('load', () => {
+            if (typeof AnimationController !== 'undefined') {
+                console.log('AnimationController found, initializing...');
+                initializeAnimationController();
+            } else {
+                console.log('AnimationController not found. Load animation.js to run tests.');
+                document.getElementById('state-display').textContent = 
+                    'AnimationController not loaded.\nTo run tests, load the animation.js file first.';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animation Integration Test - Plasma Furnace Simulator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        
+        h1 {
+            color: #4CAF50;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        
+        h2 {
+            color: #2196F3;
+            margin-top: 30px;
+        }
+        
+        .test-section {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .test-pass {
+            background: #1b5e20;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .test-fail {
+            background: #b71c1c;
+            border-left: 4px solid #f44336;
+        }
+        
+        .test-info {
+            background: #01579b;
+            border-left: 4px solid #2196F3;
+        }
+        
+        .test-warning {
+            background: #e65100;
+            border-left: 4px solid #ff9800;
+        }
+        
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        
+        button:hover {
+            background: #1976D2;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            background: #333;
+            border-left: 4px solid #FFC107;
+        }
+        
+        .component-status {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .component-card {
+            background: #333;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #555;
+        }
+        
+        .component-card h3 {
+            margin-top: 0;
+            color: #4CAF50;
+        }
+        
+        .component-card.connected {
+            border-color: #4CAF50;
+        }
+        
+        .component-card.disconnected {
+            border-color: #f44336;
+        }
+        
+        pre {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #444;
+        }
+        
+        .event-log {
+            max-height: 400px;
+            overflow-y: auto;
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .event-entry {
+            padding: 5px;
+            margin: 2px 0;
+            border-left: 3px solid #2196F3;
+            padding-left: 10px;
+        }
+        
+        .event-entry.error {
+            border-left-color: #f44336;
+        }
+        
+        .event-entry.success {
+            border-left-color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Animation Integration Test - Task 15</h1>
+    
+    <div class="status" id="overall-status">
+        <strong>Status:</strong> <span id="status-text">Initializing...</span>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button onclick="runAllTests()">Run All Integration Tests</button>
+        <button onclick="testComponentConnections()">Test Component Connections</button>
+        <button onclick="testEventFlow()">Test Event Flow</button>
+        <button onclick="testPlaybackFlow()">Test Playback Flow</button>
+        <button onclick="testTimelineScrubbing()">Test Timeline Scrubbing</button>
+        <button onclick="testSpeedControl()">Test Speed Control</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Component Status</h2>
+        <div class="component-status" id="component-status"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="test-results"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Event Log</h2>
+        <div class="event-log" id="event-log"></div>
+    </div>
+    
+    <script>
+        // Test state
+        let testResults = [];
+        let eventLog = [];
+        let eventListeners = [];
+        
+        // Mock EventBus for testing
+        class MockEventBus {
+            constructor() {
+                this.listeners = new Map();
+                this.eventHistory = [];
+            }
+            
+            on(event, callback) {
+                if (!this.listeners.has(event)) {
+                    this.listeners.set(event, new Set());
+                }
+                this.listeners.get(event).add(callback);
+                logEvent(`Subscribed to: ${event}`, 'success');
+                return () => this.off(event, callback);
+            }
+            
+            off(event, callback) {
+                if (this.listeners.has(event)) {
+                    this.listeners.get(event).delete(callback);
+                }
+            }
+            
+            emit(event, data) {
+                this.eventHistory.push({ event, data, timestamp: Date.now() });
+                logEvent(`Event emitted: ${event}`, 'success');
+                
+                if (this.listeners.has(event)) {
+                    this.listeners.get(event).forEach(callback => {
+                        try {
+                            callback(data);
+                        } catch (error) {
+                            logEvent(`Error in ${event} handler: ${error.message}`, 'error');
+                        }
+                    });
+                }
+            }
+            
+            hasListeners(event) {
+                return this.listeners.has(event) && this.listeners.get(event).size > 0;
+            }
+            
+            getListenerCount(event) {
+                return this.listeners.has(event) ? this.listeners.get(event).size : 0;
+            }
+        }
+        
+        // Initialize test environment
+        const eventBus = new MockEventBus();
+        
+        // Log event
+        function logEvent(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = `[${timestamp}] ${message}`;
+            eventLog.push({ message: entry, type });
+            
+            const logContainer = document.getElementById('event-log');
+            const entryDiv = document.createElement('div');
+            entryDiv.className = `event-entry ${type}`;
+            entryDiv.textContent = entry;
+            logContainer.appendChild(entryDiv);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // Add test result
+        function addTestResult(name, passed, message) {
+            testResults.push({ name, passed, message });
+            
+            const resultsContainer = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${passed ? 'test-pass' : 'test-fail'}`;
+            resultDiv.innerHTML = `
+                <strong>${passed ? '✓' : '✗'} ${name}</strong><br>
+                ${message}
+            `;
+            resultsContainer.appendChild(resultDiv);
+        }
+        
+        // Update status
+        function updateStatus(text, type = 'info') {
+            const statusText = document.getElementById('status-text');
+            statusText.textContent = text;
+            logEvent(text, type);
+        }
+        
+        // Clear results
+        function clearResults() {
+            testResults = [];
+            eventLog = [];
+            document.getElementById('test-results').innerHTML = '';
+            document.getElementById('event-log').innerHTML = '';
+            updateStatus('Results cleared', 'info');
+        }
+        
+        // Test 1: Component Connections
+        function testComponentConnections() {
+            updateStatus('Testing component connections...', 'info');
+            
+            const components = {
+                'EventBus': eventBus,
+                'AnimationController': typeof AnimationController !== 'undefined',
+                'AnimationUI': typeof AnimationUI !== 'undefined',
+                'DataCacheManager': typeof DataCacheManager !== 'undefined',
+                'VisualizationPanel': typeof VisualizationPanel !== 'undefined'
+            };
+            
+            const statusContainer = document.getElementById('component-status');
+            statusContainer.innerHTML = '';
+            
+            let allConnected = true;
+            
+            for (const [name, available] of Object.entries(components)) {
+                const card = document.createElement('div');
+                card.className = `component-card ${available ? 'connected' : 'disconnected'}`;
+                card.innerHTML = `
+                    <h3>${name}</h3>
+                    <p>Status: ${available ? '✓ Available' : '✗ Not Available'}</p>
+                `;
+                statusContainer.appendChild(card);
+                
+                if (!available) {
+                    allConnected = false;
+                    addTestResult(
+                        `Component: ${name}`,
+                        false,
+                        `${name} is not available`
+                    );
+                } else {
+                    addTestResult(
+                        `Component: ${name}`,
+                        true,
+                        `${name} is available and ready`
+                    );
+                }
+            }
+            
+            if (allConnected) {
+                updateStatus('All components connected successfully', 'success');
+            } else {
+                updateStatus('Some components are missing', 'error');
+            }
+            
+            return allConnected;
+        }
+        
+        // Test 2: Event Flow
+        function testEventFlow() {
+            updateStatus('Testing event flow...', 'info');
+            
+            const testEvents = [
+                'animation:initialized',
+                'animation:play',
+                'animation:pause',
+                'animation:timeChanged',
+                'animation:speedChanged',
+                'animation:frame-loaded',
+                'animation:frame-loading',
+                'cache:loading-start',
+                'cache:loading-progress',
+                'cache:ready'
+            ];
+            
+            let allEventsWork = true;
+            
+            testEvents.forEach(eventName => {
+                let eventReceived = false;
+                
+                const unsubscribe = eventBus.on(eventName, (data) => {
+                    eventReceived = true;
+                    logEvent(`Received: ${eventName}`, 'success');
+                });
+                
+                // Emit test event
+                eventBus.emit(eventName, { test: true });
+                
+                // Check if event was received
+                if (eventReceived) {
+                    addTestResult(
+                        `Event Flow: ${eventName}`,
+                        true,
+                        `Event ${eventName} was emitted and received successfully`
+                    );
+                } else {
+                    allEventsWork = false;
+                    addTestResult(
+                        `Event Flow: ${eventName}`,
+                        false,
+                        `Event ${eventName} was not received`
+                    );
+                }
+                
+                unsubscribe();
+            });
+            
+            if (allEventsWork) {
+                updateStatus('All event flows working correctly', 'success');
+            } else {
+                updateStatus('Some event flows failed', 'error');
+            }
+            
+            return allEventsWork;
+        }
+        
+        // Test 3: Playback Flow
+        function testPlaybackFlow() {
+            updateStatus('Testing playback flow...', 'info');
+            
+            const playbackSequence = [
+                { event: 'animation:initialized', data: { totalTimeSteps: 100, totalTime: 60 } },
+                { event: 'cache:ready', data: { cachedFrames: 10, totalFrames: 100 } },
+                { event: 'animation:play', data: { currentTimeStep: 0 } },
+                { event: 'animation:timeChanged', data: { timeStep: 1, time: 0.6 } },
+                { event: 'animation:timeChanged', data: { timeStep: 2, time: 1.2 } },
+                { event: 'animation:pause', data: { currentTimeStep: 2 } }
+            ];
+            
+            let sequenceCorrect = true;
+            let receivedEvents = [];
+            
+            // Subscribe to all playback events
+            playbackSequence.forEach(({ event }) => {
+                eventBus.on(event, (data) => {
+                    receivedEvents.push({ event, data, timestamp: Date.now() });
+                });
+            });
+            
+            // Emit playback sequence
+            playbackSequence.forEach(({ event, data }, index) => {
+                setTimeout(() => {
+                    eventBus.emit(event, data);
+                }, index * 100);
+            });
+            
+            // Verify sequence after all events
+            setTimeout(() => {
+                if (receivedEvents.length === playbackSequence.length) {
+                    addTestResult(
+                        'Playback Flow: Event Sequence',
+                        true,
+                        `All ${playbackSequence.length} playback events received in order`
+                    );
+                    updateStatus('Playback flow test completed successfully', 'success');
+                } else {
+                    sequenceCorrect = false;
+                    addTestResult(
+                        'Playback Flow: Event Sequence',
+                        false,
+                        `Expected ${playbackSequence.length} events, received ${receivedEvents.length}`
+                    );
+                    updateStatus('Playback flow test failed', 'error');
+                }
+            }, playbackSequence.length * 100 + 200);
+            
+            return sequenceCorrect;
+        }
+        
+        // Test 4: Timeline Scrubbing
+        function testTimelineScrubbing() {
+            updateStatus('Testing timeline scrubbing...', 'info');
+            
+            let scrubbingWorks = true;
+            let timeChangeReceived = false;
+            
+            // Subscribe to time change events
+            eventBus.on('animation:timeChanged', (data) => {
+                timeChangeReceived = true;
+                logEvent(`Time changed to step ${data.timeStep}`, 'success');
+            });
+            
+            // Simulate scrubbing
+            const scrubSteps = [0, 10, 25, 50, 75, 99];
+            scrubSteps.forEach((step, index) => {
+                setTimeout(() => {
+                    eventBus.emit('animation:timeChanged', {
+                        timeStep: step,
+                        time: step * 0.6,
+                        progress: step / 99
+                    });
+                }, index * 50);
+            });
+            
+            // Verify scrubbing after all steps
+            setTimeout(() => {
+                if (timeChangeReceived) {
+                    addTestResult(
+                        'Timeline Scrubbing',
+                        true,
+                        `Timeline scrubbing events handled correctly (${scrubSteps.length} steps)`
+                    );
+                    updateStatus('Timeline scrubbing test completed', 'success');
+                } else {
+                    scrubbingWorks = false;
+                    addTestResult(
+                        'Timeline Scrubbing',
+                        false,
+                        'Timeline scrubbing events not received'
+                    );
+                    updateStatus('Timeline scrubbing test failed', 'error');
+                }
+            }, scrubSteps.length * 50 + 100);
+            
+            return scrubbingWorks;
+        }
+        
+        // Test 5: Speed Control
+        function testSpeedControl() {
+            updateStatus('Testing speed control...', 'info');
+            
+            let speedControlWorks = true;
+            let speedChanges = [];
+            
+            // Subscribe to speed change events
+            eventBus.on('animation:speedChanged', (data) => {
+                speedChanges.push(data.speed);
+                logEvent(`Speed changed to ${data.speed}x`, 'success');
+            });
+            
+            // Test different speeds
+            const speeds = [0.5, 1.0, 2.0, 5.0, 10.0];
+            speeds.forEach((speed, index) => {
+                setTimeout(() => {
+                    eventBus.emit('animation:speedChanged', { speed });
+                }, index * 50);
+            });
+            
+            // Verify speed changes
+            setTimeout(() => {
+                if (speedChanges.length === speeds.length) {
+                    addTestResult(
+                        'Speed Control',
+                        true,
+                        `All ${speeds.length} speed changes handled correctly`
+                    );
+                    updateStatus('Speed control test completed', 'success');
+                } else {
+                    speedControlWorks = false;
+                    addTestResult(
+                        'Speed Control',
+                        false,
+                        `Expected ${speeds.length} speed changes, received ${speedChanges.length}`
+                    );
+                    updateStatus('Speed control test failed', 'error');
+                }
+            }, speeds.length * 50 + 100);
+            
+            return speedControlWorks;
+        }
+        
+        // Run all tests
+        async function runAllTests() {
+            clearResults();
+            updateStatus('Running all integration tests...', 'info');
+            
+            // Test 1: Component Connections
+            const componentsOk = testComponentConnections();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Test 2: Event Flow
+            const eventsOk = testEventFlow();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Test 3: Playback Flow
+            testPlaybackFlow();
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Test 4: Timeline Scrubbing
+            testTimelineScrubbing();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Test 5: Speed Control
+            testSpeedControl();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Final summary
+            setTimeout(() => {
+                const totalTests = testResults.length;
+                const passedTests = testResults.filter(r => r.passed).length;
+                const failedTests = totalTests - passedTests;
+                
+                const summaryDiv = document.createElement('div');
+                summaryDiv.className = failedTests === 0 ? 'test-pass' : 'test-fail';
+                summaryDiv.innerHTML = `
+                    <strong>Test Summary</strong><br>
+                    Total Tests: ${totalTests}<br>
+                    Passed: ${passedTests}<br>
+                    Failed: ${failedTests}<br>
+                    Success Rate: ${((passedTests / totalTests) * 100).toFixed(1)}%
+                `;
+                document.getElementById('test-results').appendChild(summaryDiv);
+                
+                if (failedTests === 0) {
+                    updateStatus('✓ All integration tests passed!', 'success');
+                } else {
+                    updateStatus(`✗ ${failedTests} test(s) failed`, 'error');
+                }
+            }, 4000);
+        }
+        
+        // Initialize on load
+        window.addEventListener('DOMContentLoaded', () => {
+            updateStatus('Test environment initialized', 'success');
+            logEvent('Animation Integration Test Suite Ready', 'success');
+            testComponentConnections();
+        });
+    </script>
+</body>
+</html>

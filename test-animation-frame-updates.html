@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animation Frame Updates Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        
+        .description {
+            color: #999;
+            margin-bottom: 30px;
+        }
+        
+        .test-section {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .test-section h2 {
+            color: #64B5F6;
+            margin-top: 0;
+        }
+        
+        .visualization-container {
+            width: 100%;
+            height: 500px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        #visualization-canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .metric-card {
+            background: #333;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        
+        .metric-label {
+            color: #999;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            color: #4CAF50;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .log {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 3px solid #4CAF50;
+            padding-left: 10px;
+        }
+        
+        .log-entry.error {
+            border-left-color: #f44336;
+            color: #f44336;
+        }
+        
+        .log-entry.warning {
+            border-left-color: #ff9800;
+            color: #ff9800;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        
+        .status.success {
+            background: #1b5e20;
+            color: #4CAF50;
+        }
+        
+        .status.error {
+            background: #b71c1c;
+            color: #f44336;
+        }
+        
+        .status.info {
+            background: #0d47a1;
+            color: #64B5F6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Animation Frame Updates Test</h1>
+        <p class="description">
+            Testing enhanced visualization component for animation frame updates with performance monitoring
+        </p>
+
+        <div class="test-section">
+            <h2>Visualization</h2>
+            <div class="visualization-container">
+                <canvas id="visualization-canvas"></canvas>
+            </div>
+            
+            <div class="controls">
+                <button id="initBtn">Initialize Visualization</button>
+                <button id="loadDataBtn" disabled>Load Mock Animation Data</button>
+                <button id="updateFrameBtn" disabled>Update to Random Frame</button>
+                <button id="playAnimationBtn" disabled>Play Animation</button>
+                <button id="stopAnimationBtn" disabled>Stop Animation</button>
+                <button id="toggleTransitionsBtn" disabled>Toggle Smooth Transitions</button>
+            </div>
+            
+            <div id="status"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Performance Metrics</h2>
+            <div class="metrics">
+                <div class="metric-card">
+                    <div class="metric-label">Current FPS</div>
+                    <div class="metric-value" id="fpsValue">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Frame Update (ms)</div>
+                    <div class="metric-value" id="avgUpdateTime">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Current Time Step</div>
+                    <div class="metric-value" id="currentStep">0</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Total Time Steps</div>
+                    <div class="metric-value" id="totalSteps">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Event Log</h2>
+            <div class="log" id="eventLog"></div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // Simple EventBus implementation
+        class EventBus {
+            constructor() {
+                this.listeners = {};
+            }
+            
+            on(event, callback) {
+                if (!this.listeners[event]) {
+                    this.listeners[event] = [];
+                }
+                this.listeners[event].push(callback);
+            }
+            
+            emit(event, data) {
+                if (this.listeners[event]) {
+                    this.listeners[event].forEach(callback => callback(data));
+                }
+            }
+        }
+
+        // Initialize
+        const eventBus = new EventBus();
+        let visualizationPanel = null;
+        let animationInterval = null;
+
+        // Log function
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // Status function
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+        }
+
+        // Update metrics
+        function updateMetrics() {
+            if (!visualizationPanel) return;
+            
+            const status = visualizationPanel.getStatus();
+            const perf = status.performance;
+            
+            document.getElementById('fpsValue').textContent = perf.fps || 0;
+            document.getElementById('avgUpdateTime').textContent = perf.avgFrameUpdateTime || 0;
+            document.getElementById('currentStep').textContent = status.currentTimeStep;
+            document.getElementById('totalSteps').textContent = status.totalTimeSteps;
+        }
+
+        // Generate mock animation data
+        function generateMockAnimationData(timeSteps = 30) {
+            const nr = 20; // radial points
+            const nz = 40; // height points
+            const temperatureData = [];
+            
+            // Generate temperature data for each time step
+            for (let t = 0; t < timeSteps; t++) {
+                const grid = [];
+                const progress = t / timeSteps;
+                
+                for (let z = 0; z < nz; z++) {
+                    const row = [];
+                    for (let r = 0; r < nr; r++) {
+                        // Simulate heat spreading from bottom center over time
+                        const normalizedZ = z / nz;
+                        const normalizedR = r / nr;
+                        
+                        // Heat source at bottom (z=0), center (r=0)
+                        const distanceFromSource = Math.sqrt(normalizedR * normalizedR + normalizedZ * normalizedZ);
+                        
+                        // Temperature decreases with distance and increases over time
+                        const baseTemp = 300; // Room temperature
+                        const maxTemp = 2000; // Max temperature
+                        const heatSpread = 0.3 + progress * 0.5; // Heat spreads over time
+                        
+                        const temp = baseTemp + (maxTemp - baseTemp) * 
+                            Math.exp(-distanceFromSource / heatSpread) * 
+                            (0.5 + progress * 0.5);
+                        
+                        row.push(temp);
+                    }
+                    grid.push(row);
+                }
+                temperatureData.push(grid);
+            }
+            
+            // Generate time steps metadata
+            const timeStepsData = [];
+            const duration = 60; // 60 seconds total
+            for (let t = 0; t < timeSteps; t++) {
+                timeStepsData.push({
+                    time: (t / (timeSteps - 1)) * duration,
+                    step: t
+                });
+            }
+            
+            return {
+                temperatureData: temperatureData,
+                timeSteps: timeStepsData,
+                duration: duration,
+                metadata: {
+                    parameters: {
+                        furnace: {
+                            height: 2.0,
+                            radius: 1.0
+                        },
+                        torch: {
+                            position: { r: 0, z: 0 }
+                        }
+                    },
+                    temperatureRange: {
+                        min: 300,
+                        max: 2000
+                    }
+                }
+            };
+        }
+
+        // Event listeners
+        eventBus.on('visualization:initialized', (data) => {
+            log('✅ Visualization initialized', 'info');
+            document.getElementById('loadDataBtn').disabled = false;
+            showStatus('Visualization ready - load animation data to continue', 'success');
+        });
+
+        eventBus.on('visualization:loaded', (data) => {
+            log(`✅ Animation data loaded: ${data.timeSteps} time steps`, 'info');
+            document.getElementById('updateFrameBtn').disabled = false;
+            document.getElementById('playAnimationBtn').disabled = false;
+            document.getElementById('toggleTransitionsBtn').disabled = false;
+            showStatus(`Animation ready with ${data.timeSteps} frames`, 'success');
+            updateMetrics();
+        });
+
+        eventBus.on('visualization:frameUpdated', (data) => {
+            log(`Frame updated: step ${data.timeStep}, time ${data.actualTime?.toFixed(2)}s, update time ${data.updateTime}ms`);
+            updateMetrics();
+        });
+
+        eventBus.on('visualization:fpsUpdated', (data) => {
+            document.getElementById('fpsValue').textContent = data.fps;
+        });
+
+        eventBus.on('visualization:error', (data) => {
+            log(`❌ Error: ${data.message}`, 'error');
+            showStatus(`Error: ${data.message}`, 'error');
+        });
+
+        // Button handlers
+        document.getElementById('initBtn').addEventListener('click', async () => {
+            log('Initializing visualization...');
+            showStatus('Initializing visualization...', 'info');
+            
+            const container = document.querySelector('.visualization-container');
+            visualizationPanel = new VisualizationPanel(container, eventBus);
+            
+            const success = await visualizationPanel.init();
+            if (!success) {
+                log('❌ Failed to initialize visualization', 'error');
+                showStatus('Failed to initialize visualization', 'error');
+            }
+            
+            document.getElementById('initBtn').disabled = true;
+        });
+
+        document.getElementById('loadDataBtn').addEventListener('click', () => {
+            log('Generating and loading mock animation data...');
+            showStatus('Loading animation data...', 'info');
+            
+            const mockData = generateMockAnimationData(30);
+            visualizationPanel.loadSimulationData(mockData);
+            
+            document.getElementById('loadDataBtn').disabled = true;
+        });
+
+        document.getElementById('updateFrameBtn').addEventListener('click', async () => {
+            if (!visualizationPanel) return;
+            
+            const status = visualizationPanel.getStatus();
+            const randomStep = Math.floor(Math.random() * status.totalTimeSteps);
+            
+            log(`Updating to random frame: ${randomStep}`);
+            await visualizationPanel.updateToTimeStep(randomStep);
+        });
+
+        document.getElementById('playAnimationBtn').addEventListener('click', () => {
+            if (!visualizationPanel || animationInterval) return;
+            
+            log('▶️ Starting animation playback');
+            showStatus('Playing animation...', 'info');
+            
+            document.getElementById('playAnimationBtn').disabled = true;
+            document.getElementById('stopAnimationBtn').disabled = false;
+            
+            let currentFrame = 0;
+            const status = visualizationPanel.getStatus();
+            
+            animationInterval = setInterval(async () => {
+                await visualizationPanel.updateToTimeStep(currentFrame);
+                currentFrame = (currentFrame + 1) % status.totalTimeSteps;
+            }, 100); // 10 FPS playback
+        });
+
+        document.getElementById('stopAnimationBtn').addEventListener('click', () => {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+                
+                log('⏸️ Animation playback stopped');
+                showStatus('Animation stopped', 'info');
+                
+                document.getElementById('playAnimationBtn').disabled = false;
+                document.getElementById('stopAnimationBtn').disabled = true;
+            }
+        });
+
+        document.getElementById('toggleTransitionsBtn').addEventListener('click', () => {
+            if (!visualizationPanel) return;
+            
+            const status = visualizationPanel.getStatus();
+            const newState = !status.config.smoothTransitions;
+            
+            visualizationPanel.enableSmoothTransitions(newState);
+            log(`Smooth transitions: ${newState ? 'enabled' : 'disabled'}`);
+            showStatus(`Smooth transitions ${newState ? 'enabled' : 'disabled'}`, 'info');
+        });
+
+        // Update metrics periodically
+        setInterval(updateMetrics, 500);
+    </script>
+
+    <!-- Load VisualizationPanel -->
+    <script src="src-tauri/ui/js/components/visualization.js"></script>
+</body>
+</html>

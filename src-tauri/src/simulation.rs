@@ -488,24 +488,89 @@ pub async fn get_simulation_results(simulation_id: String) -> Result<serde_json:
             
             match &progress.status {
                 SimulationStatus::Completed => {
-                    // In a real implementation, you'd retrieve stored results
-                    // For now, return mock data based on the simulation parameters
-                    Ok(serde_json::json!({
-                        "simulation_id": simulation_id,
-                        "status": "completed",
-                        "results": {
-                            "temperature": {
-                                "max": 1200.0,
-                                "min": 300.0,
-                                "data": generate_mock_temperature_data()
-                            },
-                            "metadata": {
-                                "total_time": progress.total_time,
-                                "time_steps": progress.time_steps_completed,
-                                "completion_time": progress.last_update
+                    // Get animation data from the simulation engine
+                    let engine = context.engine.lock().await;
+                    let animation_data = engine.get_animation_data();
+                    
+                    // Get animation metadata
+                    let metadata = engine.get_animation_metadata();
+                    
+                    // Build response with actual simulation data
+                    let response = if let Some(anim_data) = animation_data {
+                        // Return full animation data with all time steps
+                        serde_json::json!({
+                            "simulation_id": simulation_id,
+                            "status": "completed",
+                            "results": {
+                                "temperature": {
+                                    "max": anim_data.metadata.temperature_range.1,
+                                    "min": anim_data.metadata.temperature_range.0,
+                                    "data": if !anim_data.time_steps.is_empty() {
+                                        // Return the last time step as the final temperature grid
+                                        anim_data.time_steps.last().unwrap().temperature_grid.clone()
+                                    } else {
+                                        generate_mock_temperature_data()
+                                    }
+                                },
+                                "time_steps": anim_data.time_steps,
+                                "metadata": {
+                                    "total_time": progress.total_time,
+                                    "time_steps_completed": anim_data.metadata.total_time_steps,
+                                    "completion_time": progress.last_update,
+                                    "temperature_range": anim_data.metadata.temperature_range,
+                                    "mesh_dimensions": anim_data.metadata.mesh_dimensions,
+                                    "furnace_dimensions": anim_data.metadata.furnace_dimensions,
+                                    "time_interval": anim_data.metadata.time_interval,
+                                    "simulation_duration": anim_data.metadata.simulation_duration
+                                }
                             }
-                        }
-                    }))
+                        })
+                    } else if let Some(meta) = metadata {
+                        // Return metadata only if animation data is not available
+                        serde_json::json!({
+                            "simulation_id": simulation_id,
+                            "status": "completed",
+                            "results": {
+                                "temperature": {
+                                    "max": meta.temperature_range.1,
+                                    "min": meta.temperature_range.0,
+                                    "data": generate_mock_temperature_data()
+                                },
+                                "time_steps": [],
+                                "metadata": {
+                                    "total_time": progress.total_time,
+                                    "time_steps_completed": meta.total_time_steps,
+                                    "completion_time": progress.last_update,
+                                    "temperature_range": meta.temperature_range,
+                                    "mesh_dimensions": meta.mesh_dimensions,
+                                    "furnace_dimensions": meta.furnace_dimensions,
+                                    "time_interval": meta.time_interval,
+                                    "simulation_duration": meta.simulation_duration
+                                }
+                            }
+                        })
+                    } else {
+                        // Fallback to mock data
+                        serde_json::json!({
+                            "simulation_id": simulation_id,
+                            "status": "completed",
+                            "results": {
+                                "temperature": {
+                                    "max": 1200.0,
+                                    "min": 300.0,
+                                    "data": generate_mock_temperature_data()
+                                },
+                                "time_steps": [],
+                                "metadata": {
+                                    "total_time": progress.total_time,
+                                    "time_steps_completed": 0,
+                                    "completion_time": progress.last_update
+                                }
+                            }
+                        })
+                    };
+                    
+                    Ok(response)
                 }
                 _ => {
                     Err("Simulation not completed".to_string())
@@ -657,4 +722,91 @@ pub fn get_playback_info(simulation_id: String) -> Result<serde_json::Value, Str
         "max_temperature": 1000.0,
         "mesh_resolution": [3, 3]
     }))
+}
+
+/// Get complete animation data for a simulation
+#[tauri::command]
+pub async fn get_animation_data(simulation_id: String) -> Result<serde_json::Value, String> {
+    info!("Getting animation data for simulation {}", simulation_id);
+    
+    let manager = init_simulation_manager().await;
+    let active_sims = manager.active_simulations.lock().await;
+    
+    match active_sims.get(&simulation_id) {
+        Some(context) => {
+            let engine = context.engine.lock().await;
+            
+            match engine.get_animation_data() {
+                Some(animation_data) => {
+                    Ok(serde_json::to_value(&animation_data)
+                        .map_err(|e| format!("Failed to serialize animation data: {}", e))?)
+                }
+                None => {
+                    Err("No animation data available for this simulation".to_string())
+                }
+            }
+        }
+        None => {
+            Err("Simulation not found".to_string())
+        }
+    }
+}
+
+/// Get specific time step data for a simulation
+#[tauri::command]
+pub async fn get_time_step_data_v2(
+    simulation_id: String, 
+    time_step: usize
+) -> Result<serde_json::Value, String> {
+    info!("Getting time step {} data for simulation {}", time_step, simulation_id);
+    
+    let manager = init_simulation_manager().await;
+    let active_sims = manager.active_simulations.lock().await;
+    
+    match active_sims.get(&simulation_id) {
+        Some(context) => {
+            let engine = context.engine.lock().await;
+            
+            match engine.get_time_step_data(time_step) {
+                Some(time_step_data) => {
+                    Ok(serde_json::to_value(time_step_data)
+                        .map_err(|e| format!("Failed to serialize time step data: {}", e))?)
+                }
+                None => {
+                    Err(format!("Time step {} not found", time_step))
+                }
+            }
+        }
+        None => {
+            Err("Simulation not found".to_string())
+        }
+    }
+}
+
+/// Get animation metadata for a simulation
+#[tauri::command]
+pub async fn get_animation_metadata(simulation_id: String) -> Result<serde_json::Value, String> {
+    info!("Getting animation metadata for simulation {}", simulation_id);
+    
+    let manager = init_simulation_manager().await;
+    let active_sims = manager.active_simulations.lock().await;
+    
+    match active_sims.get(&simulation_id) {
+        Some(context) => {
+            let engine = context.engine.lock().await;
+            
+            match engine.get_animation_metadata() {
+                Some(metadata) => {
+                    Ok(serde_json::to_value(&metadata)
+                        .map_err(|e| format!("Failed to serialize metadata: {}", e))?)
+                }
+                None => {
+                    Err("No animation metadata available for this simulation".to_string())
+                }
+            }
+        }
+        None => {
+            Err("Simulation not found".to_string())
+        }
+    }
 }

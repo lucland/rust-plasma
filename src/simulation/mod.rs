@@ -242,6 +242,43 @@ impl EnergyMonitor {
     }
 }
 
+/// Time step data for animation playback
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TimeStepData {
+    /// Simulation time in seconds
+    pub time: f64,
+    /// Temperature grid at this time step [row][col]
+    pub temperature_grid: Vec<Vec<f64>>,
+    /// Time step index
+    pub step_index: usize,
+}
+
+/// Animation metadata
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AnimationMetadata {
+    /// Total number of time steps
+    pub total_time_steps: usize,
+    /// Total simulation duration in seconds
+    pub simulation_duration: f64,
+    /// Time interval between steps
+    pub time_interval: f64,
+    /// Temperature range (min, max)
+    pub temperature_range: (f64, f64),
+    /// Mesh dimensions (nr, nz)
+    pub mesh_dimensions: (usize, usize),
+    /// Furnace dimensions (radius, height)
+    pub furnace_dimensions: (f64, f64),
+}
+
+/// Complete animation data
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AnimationData {
+    /// All time step data
+    pub time_steps: Vec<TimeStepData>,
+    /// Animation metadata
+    pub metadata: AnimationMetadata,
+}
+
 /// Simulation results structure
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SimulationResults {
@@ -265,6 +302,8 @@ pub struct SimulationResults {
     pub min_temperature: f64,
     /// Average temperature
     pub avg_temperature: f64,
+    /// Time-series data for animation (optional, can be large)
+    pub time_series_data: Option<Vec<TimeStepData>>,
 }
 
 /// Main simulation engine that orchestrates mesh, physics, and solver
@@ -277,6 +316,12 @@ pub struct SimulationEngine {
     state_manager: Option<SimulationStateManager>,
     cancellation_token: Arc<AtomicBool>,
     energy_monitor: EnergyMonitor,
+    /// Time-series data storage for animation
+    time_series_data: Vec<TimeStepData>,
+    /// Interval for storing time steps (in seconds)
+    storage_interval: f64,
+    /// Last stored time
+    last_stored_time: f64,
 }
 
 impl SimulationEngine {
@@ -284,6 +329,9 @@ impl SimulationEngine {
     pub fn new(config: SimulationConfig) -> Result<Self> {
         // Validate configuration
         Self::validate_config(&config)?;
+        
+        // Calculate storage interval (store ~100 frames for animation)
+        let storage_interval = config.physics.simulation_time / 100.0;
         
         Ok(Self {
             config,
@@ -294,6 +342,9 @@ impl SimulationEngine {
             state_manager: None,
             cancellation_token: Arc::new(AtomicBool::new(false)),
             energy_monitor: EnergyMonitor::new(),
+            time_series_data: Vec::new(),
+            storage_interval: storage_interval.max(0.01), // At least 10ms between frames
+            last_stored_time: -1.0, // Force storage of first frame
         })
     }
     
@@ -529,6 +580,12 @@ impl SimulationEngine {
             current_time += dt;
             time_step += 1;
             
+            // Store time step data for animation if interval has passed
+            if current_time - self.last_stored_time >= self.storage_interval {
+                self.store_time_step_data(current_time, time_step);
+                self.last_stored_time = current_time;
+            }
+            
             // Calculate energy and monitor conservation
             {
                 let mesh = self.mesh.as_ref().unwrap();
@@ -634,6 +691,27 @@ impl SimulationEngine {
         total_loss
     }
     
+    /// Store current temperature field as a time step for animation
+    fn store_time_step_data(&mut self, current_time: f64, step_index: usize) {
+        if let Some(ref temperature_field) = self.temperature_field {
+            // Convert temperature field to Vec<Vec<f64>>
+            let mut temp_grid = Vec::new();
+            for i in 0..temperature_field.nrows() {
+                let mut row = Vec::new();
+                for j in 0..temperature_field.ncols() {
+                    row.push(temperature_field[[i, j]]);
+                }
+                temp_grid.push(row);
+            }
+            
+            self.time_series_data.push(TimeStepData {
+                time: current_time,
+                temperature_grid: temp_grid,
+                step_index,
+            });
+        }
+    }
+    
     /// Create simulation results
     fn create_results(&self, duration: f64, time_steps: usize, final_time: f64) -> Result<SimulationResults> {
         let temperature_field = self.temperature_field.as_ref().unwrap();
@@ -665,6 +743,7 @@ impl SimulationEngine {
             max_temperature,
             min_temperature,
             avg_temperature,
+            time_series_data: Some(self.time_series_data.clone()),
         })
     }
     
@@ -676,6 +755,10 @@ impl SimulationEngine {
     /// Update the configuration
     pub fn set_config(&mut self, config: SimulationConfig) -> Result<()> {
         Self::validate_config(&config)?;
+        
+        // Calculate new storage interval
+        let storage_interval = config.physics.simulation_time / 100.0;
+        
         self.config = config;
         
         // Reset components to force re-initialization
@@ -685,6 +768,9 @@ impl SimulationEngine {
         self.temperature_field = None;
         self.state_manager = None;
         self.energy_monitor = EnergyMonitor::new();
+        self.time_series_data = Vec::new();
+        self.storage_interval = storage_interval.max(0.01);
+        self.last_stored_time = -1.0;
         
         Ok(())
     }
@@ -726,6 +812,92 @@ impl SimulationEngine {
     /// Check if simulation is initialized
     pub fn is_initialized(&self) -> bool {
         self.mesh.is_some() && self.physics.is_some() && self.solver.is_some()
+    }
+    
+    /// Get animation data (all time steps with metadata)
+    pub fn get_animation_data(&self) -> Option<AnimationData> {
+        if self.time_series_data.is_empty() {
+            return None;
+        }
+        
+        let mesh = self.mesh.as_ref()?;
+        
+        // Calculate temperature range across all time steps
+        let mut min_temp = f64::INFINITY;
+        let mut max_temp = f64::NEG_INFINITY;
+        
+        for time_step in &self.time_series_data {
+            for row in &time_step.temperature_grid {
+                for &temp in row {
+                    min_temp = min_temp.min(temp);
+                    max_temp = max_temp.max(temp);
+                }
+            }
+        }
+        
+        // Calculate time interval
+        let time_interval = if self.time_series_data.len() > 1 {
+            (self.time_series_data.last().unwrap().time - self.time_series_data.first().unwrap().time) 
+                / (self.time_series_data.len() - 1) as f64
+        } else {
+            0.0
+        };
+        
+        Some(AnimationData {
+            time_steps: self.time_series_data.clone(),
+            metadata: AnimationMetadata {
+                total_time_steps: self.time_series_data.len(),
+                simulation_duration: self.time_series_data.last().map(|ts| ts.time).unwrap_or(0.0),
+                time_interval,
+                temperature_range: (min_temp, max_temp),
+                mesh_dimensions: (mesh.nr, mesh.nz),
+                furnace_dimensions: (self.config.geometry.radius, self.config.geometry.height),
+            },
+        })
+    }
+    
+    /// Get specific time step data
+    pub fn get_time_step_data(&self, time_step: usize) -> Option<&TimeStepData> {
+        self.time_series_data.get(time_step)
+    }
+    
+    /// Get animation metadata without full data
+    pub fn get_animation_metadata(&self) -> Option<AnimationMetadata> {
+        if self.time_series_data.is_empty() {
+            return None;
+        }
+        
+        let mesh = self.mesh.as_ref()?;
+        
+        // Calculate temperature range
+        let mut min_temp = f64::INFINITY;
+        let mut max_temp = f64::NEG_INFINITY;
+        
+        for time_step in &self.time_series_data {
+            for row in &time_step.temperature_grid {
+                for &temp in row {
+                    min_temp = min_temp.min(temp);
+                    max_temp = max_temp.max(temp);
+                }
+            }
+        }
+        
+        // Calculate time interval
+        let time_interval = if self.time_series_data.len() > 1 {
+            (self.time_series_data.last().unwrap().time - self.time_series_data.first().unwrap().time) 
+                / (self.time_series_data.len() - 1) as f64
+        } else {
+            0.0
+        };
+        
+        Some(AnimationMetadata {
+            total_time_steps: self.time_series_data.len(),
+            simulation_duration: self.time_series_data.last().map(|ts| ts.time).unwrap_or(0.0),
+            time_interval,
+            temperature_range: (min_temp, max_temp),
+            mesh_dimensions: (mesh.nr, mesh.nz),
+            furnace_dimensions: (self.config.geometry.radius, self.config.geometry.height),
+        })
     }
 }
 
@@ -840,6 +1012,80 @@ mod tests {
         let geometry = GeometryConfig::default();
         assert_eq!(geometry.radius, 1.0);
         assert_eq!(geometry.height, 2.0);
+    }
+    
+    #[test]
+    fn test_time_series_data_storage() {
+        let mut config = SimulationConfig::default();
+        config.physics.simulation_time = 0.5; // Short simulation
+        
+        let mut engine = SimulationEngine::new(config).unwrap();
+        let results = engine.run().unwrap();
+        
+        // Verify time series data was stored
+        assert!(results.time_series_data.is_some());
+        let time_series = results.time_series_data.unwrap();
+        assert!(!time_series.is_empty());
+        
+        // Verify time step data structure
+        let first_step = &time_series[0];
+        assert!(!first_step.temperature_grid.is_empty());
+    }
+    
+    #[test]
+    fn test_animation_data_retrieval() {
+        let mut config = SimulationConfig::default();
+        config.physics.simulation_time = 0.5;
+        
+        let mut engine = SimulationEngine::new(config).unwrap();
+        engine.run().unwrap();
+        
+        // Test get_animation_data
+        let animation_data = engine.get_animation_data();
+        assert!(animation_data.is_some());
+        
+        let data = animation_data.unwrap();
+        assert!(!data.time_steps.is_empty());
+        assert!(data.metadata.total_time_steps > 0);
+        assert!(data.metadata.simulation_duration > 0.0);
+    }
+    
+    #[test]
+    fn test_animation_metadata_retrieval() {
+        let mut config = SimulationConfig::default();
+        config.physics.simulation_time = 0.5;
+        
+        let mut engine = SimulationEngine::new(config).unwrap();
+        engine.run().unwrap();
+        
+        // Test get_animation_metadata
+        let metadata = engine.get_animation_metadata();
+        assert!(metadata.is_some());
+        
+        let meta = metadata.unwrap();
+        assert!(meta.total_time_steps > 0);
+        assert_eq!(meta.mesh_dimensions, (50, 50)); // Fast preset
+        assert_eq!(meta.furnace_dimensions, (1.0, 2.0)); // Default geometry
+    }
+    
+    #[test]
+    fn test_time_step_data_retrieval() {
+        let mut config = SimulationConfig::default();
+        config.physics.simulation_time = 0.5;
+        
+        let mut engine = SimulationEngine::new(config).unwrap();
+        engine.run().unwrap();
+        
+        // Test get_time_step_data
+        let step_0 = engine.get_time_step_data(0);
+        assert!(step_0.is_some());
+        
+        let step_data = step_0.unwrap();
+        assert!(!step_data.temperature_grid.is_empty());
+        
+        // Test out of bounds
+        let invalid_step = engine.get_time_step_data(9999);
+        assert!(invalid_step.is_none());
     }
     
     #[test]

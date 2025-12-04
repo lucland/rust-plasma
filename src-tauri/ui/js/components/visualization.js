@@ -385,13 +385,16 @@ class VisualizationPanel {
     }
 
     /**
-     * Main render loop
+     * Main render loop with FPS tracking
      * @private
      */
     render() {
         if (!this.isRendering) return;
         
         this.animationId = requestAnimationFrame(this.render);
+        
+        // Track render performance
+        const renderStart = performance.now();
         
         // Update controls
         if (this.controls) {
@@ -401,6 +404,16 @@ class VisualizationPanel {
         // Render scene
         if (this.renderer && this.scene && this.camera) {
             this.renderer.render(this.scene, this.camera);
+        }
+        
+        // Track render time (for debugging, not included in frame update metrics)
+        const renderTime = performance.now() - renderStart;
+        
+        // Log performance warnings if render is slow
+        if (renderTime > 33) { // More than 33ms = below 30 FPS
+            if (Math.random() < 0.01) { // Log occasionally to avoid spam
+                console.warn('[VisualizationPanel] Slow render detected:', renderTime.toFixed(2) + 'ms');
+            }
         }
     }
 
@@ -548,6 +561,7 @@ class VisualizationPanel {
 
     /**
      * Load simulation data and create heatmap visualization with real backend data
+     * Enhanced to handle both single-frame and animation datasets
      * @param {Object} simulationResults - Results from backend containing temperature data
      */
     loadSimulationData(simulationResults) {
@@ -559,7 +573,8 @@ class VisualizationPanel {
                 hasTemperatureData: !!simulationResults.temperatureData,
                 temperatureDataType: Array.isArray(simulationResults.temperatureData) ? 'array' : typeof simulationResults.temperatureData,
                 hasMetadata: !!simulationResults.metadata,
-                duration: simulationResults.duration
+                duration: simulationResults.duration,
+                isAnimationDataset: this.isAnimationDataset(simulationResults)
             });
             
             // Ensure visualization is initialized before loading data
@@ -579,9 +594,13 @@ class VisualizationPanel {
             this.totalTimeSteps = simulationResults.timeSteps ? simulationResults.timeSteps.length : 1;
             this.currentTimeStep = 0;
             
+            // Initialize performance monitoring
+            this.initPerformanceMonitoring();
+            
             console.log('[VisualizationPanel] Simulation data stored:', {
                 totalTimeSteps: this.totalTimeSteps,
-                temperatureGridSize: `${simulationResults.temperatureData.length}x${simulationResults.temperatureData[0]?.length || 0}`
+                temperatureGridSize: `${simulationResults.temperatureData.length}x${simulationResults.temperatureData[0]?.length || 0}`,
+                isAnimationDataset: this.isAnimationDataset(simulationResults)
             });
             
             // Update temperature range from backend data
@@ -620,6 +639,9 @@ class VisualizationPanel {
                 this.updateHeatmapColors();
                 console.log('[VisualizationPanel] Initial heatmap colors applied from backend data');
             }
+            
+            // Update frame metadata display
+            this.updateFrameMetadata(0, this.getActualTimeForStep(0));
             
             console.log('[VisualizationPanel] ✅ Real backend simulation data loaded successfully');
             
@@ -660,6 +682,22 @@ class VisualizationPanel {
     }
 
     /**
+     * Check if simulation results contain animation dataset (multiple time steps)
+     * @private
+     * @param {Object} simulationResults - Results from backend
+     * @returns {boolean} True if this is an animation dataset
+     */
+    isAnimationDataset(simulationResults) {
+        if (!simulationResults.temperatureData || !Array.isArray(simulationResults.temperatureData)) {
+            return false;
+        }
+        
+        // Check if temperature data is 3D array [timeStep][row][col]
+        return Array.isArray(simulationResults.temperatureData[0]) && 
+               Array.isArray(simulationResults.temperatureData[0][0]);
+    }
+
+    /**
      * Prepare visualization for animation playback
      * @private
      */
@@ -671,7 +709,7 @@ class VisualizationPanel {
             // Set up animation configuration
             this.config = {
                 showLoadingOnTimeChange: this.totalTimeSteps > 50, // Only for large datasets
-                smoothTransitions: true,
+                smoothTransitions: false, // Disabled by default for performance
                 preloadFrames: Math.min(10, this.totalTimeSteps) // Preload up to 10 frames
             };
             
@@ -690,6 +728,237 @@ class VisualizationPanel {
                 error: error
             });
         }
+    }
+
+    /**
+     * Update visualization to a specific time step (optimized for animation)
+     * This is the main method used by animation controller for frame updates
+     * @param {number} timeStep - The time step index to display
+     * @param {Object} temperatureData - Optional pre-loaded temperature data for this time step
+     */
+    async updateToTimeStep(timeStep, temperatureData = null) {
+        if (!this.simulationData || !this.heatmapGroup) {
+            console.warn('[VisualizationPanel] Cannot update to time step - missing data');
+            return;
+        }
+        
+        // Clamp time step to valid range
+        const clampedTimeStep = Math.max(0, Math.min(timeStep, this.totalTimeSteps - 1));
+        
+        // Track performance
+        const startTime = performance.now();
+        
+        // Update current time step
+        this.currentTimeStep = clampedTimeStep;
+        
+        // Get temperature data if not provided
+        const tempData = temperatureData || this.getTemperatureDataForTimeStep(clampedTimeStep);
+        
+        if (!tempData) {
+            console.error('[VisualizationPanel] No temperature data for time step:', clampedTimeStep);
+            return;
+        }
+        
+        // Update particle colors efficiently (only color buffer, not geometry)
+        this.updateParticleColorsOptimized(tempData);
+        
+        // Get actual simulation time
+        const actualTime = this.getActualTimeForStep(clampedTimeStep);
+        
+        // Update frame metadata display
+        this.updateFrameMetadata(clampedTimeStep, actualTime);
+        
+        // Track performance
+        const updateTime = performance.now() - startTime;
+        this.recordFrameUpdatePerformance(updateTime);
+        
+        // Emit event
+        this.eventBus.emit('visualization:frameUpdated', {
+            timeStep: clampedTimeStep,
+            actualTime: actualTime,
+            updateTime: updateTime
+        });
+        
+        console.log('[VisualizationPanel] Frame updated:', {
+            timeStep: clampedTimeStep,
+            actualTime: actualTime ? actualTime.toFixed(2) + 's' : 'N/A',
+            updateTime: updateTime.toFixed(2) + 'ms'
+        });
+    }
+
+    /**
+     * Optimized particle color update - only updates color buffer without geometry recreation
+     * @private
+     * @param {Array} temperatureData - 2D temperature grid for current time step
+     */
+    updateParticleColorsOptimized(temperatureData) {
+        if (!this.heatmapGroup || !this.particlePositions) {
+            return;
+        }
+        
+        const geometry = this.heatmapGroup.geometry;
+        const colors = geometry.attributes.color;
+        
+        if (!colors) {
+            console.error('[VisualizationPanel] No color attribute on heatmap geometry');
+            return;
+        }
+        
+        // Get furnace dimensions
+        let furnaceHeight, furnaceRadius;
+        const furnaceGeom = this.furnaceGeometry || (this.furnaceOutline ? this.furnaceOutline.geometry : null);
+        
+        if (furnaceGeom && furnaceGeom.parameters) {
+            furnaceHeight = furnaceGeom.parameters.height;
+            furnaceRadius = furnaceGeom.parameters.radiusTop;
+        } else {
+            const params = this.simulationData?.metadata?.parameters;
+            furnaceHeight = params?.furnace?.height ?? 2.0;
+            furnaceRadius = params?.furnace?.radius ?? 1.0;
+        }
+        
+        // Update each particle color - optimized loop
+        for (let i = 0; i < this.particlePositions.length; i++) {
+            const pos = this.particlePositions[i];
+            
+            // Normalize position coordinates
+            const normalizedR = pos.r / furnaceRadius;
+            const normalizedY = (pos.y + furnaceHeight / 2) / furnaceHeight;
+            
+            // Get temperature for this position
+            const temperature = this.getTemperatureAt3DPosition(
+                normalizedR,
+                normalizedY,
+                temperatureData
+            );
+            
+            // Convert temperature to color
+            const color = this.temperatureToColor(temperature);
+            
+            // Update particle color directly
+            colors.setXYZ(i, color.r, color.g, color.b);
+        }
+        
+        // Mark colors as needing update (this is the only GPU operation needed)
+        colors.needsUpdate = true;
+    }
+
+    /**
+     * Enable or disable smooth transitions between frames
+     * @param {boolean} enabled - Whether to enable smooth transitions
+     */
+    enableSmoothTransitions(enabled) {
+        if (!this.config) {
+            this.config = {};
+        }
+        
+        this.config.smoothTransitions = enabled;
+        console.log('[VisualizationPanel] Smooth transitions:', enabled ? 'enabled' : 'disabled');
+    }
+
+    /**
+     * Update frame metadata display (time, step, temperature range)
+     * @param {number} timeStep - Current time step index
+     * @param {number} actualTime - Actual simulation time in seconds
+     */
+    updateFrameMetadata(timeStep, actualTime) {
+        // Update temperature legend with current range
+        this.updateTemperatureLegend();
+        
+        // Emit event with metadata for UI components to display
+        this.eventBus.emit('visualization:metadataUpdated', {
+            timeStep: timeStep,
+            totalTimeSteps: this.totalTimeSteps,
+            actualTime: actualTime,
+            temperatureRange: {
+                min: this.minTemperature,
+                max: this.maxTemperature
+            }
+        });
+    }
+
+    /**
+     * Initialize performance monitoring for animation playback
+     * @private
+     */
+    initPerformanceMonitoring() {
+        this.performanceMetrics = {
+            frameUpdateTimes: [],
+            maxSamples: 60, // Track last 60 frame updates
+            lastFpsUpdate: performance.now(),
+            frameCount: 0,
+            currentFps: 0
+        };
+        
+        console.log('[VisualizationPanel] Performance monitoring initialized');
+    }
+
+    /**
+     * Record frame update performance
+     * @private
+     * @param {number} updateTime - Time taken to update frame in milliseconds
+     */
+    recordFrameUpdatePerformance(updateTime) {
+        if (!this.performanceMetrics) {
+            return;
+        }
+        
+        // Add to samples
+        this.performanceMetrics.frameUpdateTimes.push(updateTime);
+        
+        // Keep only recent samples
+        if (this.performanceMetrics.frameUpdateTimes.length > this.performanceMetrics.maxSamples) {
+            this.performanceMetrics.frameUpdateTimes.shift();
+        }
+        
+        // Update frame count for FPS calculation
+        this.performanceMetrics.frameCount++;
+        
+        // Calculate FPS every second
+        const now = performance.now();
+        const elapsed = now - this.performanceMetrics.lastFpsUpdate;
+        
+        if (elapsed >= 1000) {
+            this.performanceMetrics.currentFps = Math.round(
+                (this.performanceMetrics.frameCount * 1000) / elapsed
+            );
+            this.performanceMetrics.frameCount = 0;
+            this.performanceMetrics.lastFpsUpdate = now;
+            
+            // Emit FPS update
+            this.eventBus.emit('visualization:fpsUpdated', {
+                fps: this.performanceMetrics.currentFps
+            });
+        }
+    }
+
+    /**
+     * Get current performance metrics
+     * @returns {Object} Performance metrics including FPS and average frame update time
+     */
+    getPerformanceMetrics() {
+        if (!this.performanceMetrics || this.performanceMetrics.frameUpdateTimes.length === 0) {
+            return {
+                fps: 0,
+                avgFrameUpdateTime: 0,
+                minFrameUpdateTime: 0,
+                maxFrameUpdateTime: 0
+            };
+        }
+        
+        const times = this.performanceMetrics.frameUpdateTimes;
+        const sum = times.reduce((a, b) => a + b, 0);
+        const avg = sum / times.length;
+        const min = Math.min(...times);
+        const max = Math.max(...times);
+        
+        return {
+            fps: this.performanceMetrics.currentFps,
+            avgFrameUpdateTime: avg.toFixed(2),
+            minFrameUpdateTime: min.toFixed(2),
+            maxFrameUpdateTime: max.toFixed(2),
+            sampleCount: times.length
+        };
     }
 
     /**
@@ -1642,7 +1911,7 @@ class VisualizationPanel {
     }
 
     /**
-     * Get current status
+     * Get current status including performance metrics
      */
     getStatus() {
         return {
@@ -1655,8 +1924,251 @@ class VisualizationPanel {
                 min: this.minTemperature,
                 max: this.maxTemperature
             },
-            webglSupported: this.validateWebGLSupport()
+            webglSupported: this.validateWebGLSupport(),
+            performance: this.getPerformanceMetrics(),
+            config: this.config || {}
         };
+    }
+
+    /**
+     * Capture current frame as image data
+     * @param {Object} options - Export options
+     * @param {number} options.width - Output width (optional, defaults to current canvas width)
+     * @param {number} options.height - Output height (optional, defaults to current canvas height)
+     * @param {string} options.format - Image format ('png' or 'jpeg', defaults to 'png')
+     * @param {number} options.quality - JPEG quality (0-1, defaults to 0.95)
+     * @returns {string} Data URL of the captured frame
+     */
+    captureFrame(options = {}) {
+        if (!this.renderer || !this.scene || !this.camera) {
+            throw new Error('Visualization not initialized');
+        }
+        
+        const {
+            width = this.canvas.width,
+            height = this.canvas.height,
+            format = 'png',
+            quality = 0.95
+        } = options;
+        
+        console.log('[VisualizationPanel] Capturing frame:', { width, height, format, quality });
+        
+        // Store current size
+        const currentWidth = this.canvas.width;
+        const currentHeight = this.canvas.height;
+        
+        try {
+            // Resize renderer if needed
+            if (width !== currentWidth || height !== currentHeight) {
+                this.renderer.setSize(width, height, false);
+                this.camera.aspect = width / height;
+                this.camera.updateProjectionMatrix();
+            }
+            
+            // Render one frame
+            this.renderer.render(this.scene, this.camera);
+            
+            // Capture canvas as data URL
+            const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+            const dataUrl = this.canvas.toDataURL(mimeType, quality);
+            
+            // Restore original size if changed
+            if (width !== currentWidth || height !== currentHeight) {
+                this.renderer.setSize(currentWidth, currentHeight, false);
+                this.camera.aspect = currentWidth / currentHeight;
+                this.camera.updateProjectionMatrix();
+            }
+            
+            console.log('[VisualizationPanel] Frame captured successfully');
+            
+            return dataUrl;
+            
+        } catch (error) {
+            console.error('[VisualizationPanel] Failed to capture frame:', error);
+            
+            // Restore original size on error
+            if (width !== currentWidth || height !== currentHeight) {
+                this.renderer.setSize(currentWidth, currentHeight, false);
+                this.camera.aspect = currentWidth / currentHeight;
+                this.camera.updateProjectionMatrix();
+            }
+            
+            throw error;
+        }
+    }
+
+    /**
+     * Export current frame as downloadable image
+     * @param {Object} options - Export options
+     * @param {string} options.filename - Output filename (optional)
+     * @param {number} options.width - Output width (optional)
+     * @param {number} options.height - Output height (optional)
+     * @param {string} options.format - Image format ('png' or 'jpeg')
+     * @param {number} options.quality - JPEG quality (0-1)
+     */
+    exportCurrentFrame(options = {}) {
+        try {
+            const {
+                filename = `frame_${this.currentTimeStep}_${Date.now()}.png`,
+                ...captureOptions
+            } = options;
+            
+            console.log('[VisualizationPanel] Exporting current frame:', filename);
+            
+            // Capture frame
+            const dataUrl = this.captureFrame(captureOptions);
+            
+            // Trigger download
+            this.downloadDataUrl(dataUrl, filename);
+            
+            // Emit success event
+            this.eventBus.emit('visualization:frameExported', {
+                timeStep: this.currentTimeStep,
+                filename: filename,
+                success: true
+            });
+            
+            console.log('[VisualizationPanel] Frame exported successfully:', filename);
+            
+        } catch (error) {
+            console.error('[VisualizationPanel] Failed to export frame:', error);
+            
+            // Emit error event
+            this.eventBus.emit('visualization:error', {
+                type: 'frame-export',
+                message: `Failed to export frame: ${error.message}`,
+                error: error
+            });
+            
+            throw error;
+        }
+    }
+
+    /**
+     * Export all frames as numbered image sequence
+     * @param {Object} options - Export options
+     * @param {string} options.filenamePrefix - Filename prefix (optional)
+     * @param {number} options.width - Output width (optional)
+     * @param {number} options.height - Output height (optional)
+     * @param {string} options.format - Image format ('png' or 'jpeg')
+     * @param {number} options.quality - JPEG quality (0-1)
+     * @param {Function} options.onProgress - Progress callback (optional)
+     * @returns {Promise<void>}
+     */
+    async exportAllFrames(options = {}) {
+        if (!this.simulationData || this.totalTimeSteps <= 0) {
+            throw new Error('No simulation data available for export');
+        }
+        
+        const {
+            filenamePrefix = 'frame',
+            format = 'png',
+            onProgress = null,
+            ...captureOptions
+        } = options;
+        
+        console.log('[VisualizationPanel] Starting batch export:', {
+            totalFrames: this.totalTimeSteps,
+            filenamePrefix,
+            format
+        });
+        
+        // Store current time step to restore later
+        const originalTimeStep = this.currentTimeStep;
+        
+        try {
+            // Emit export start event
+            this.eventBus.emit('visualization:batchExportStarted', {
+                totalFrames: this.totalTimeSteps
+            });
+            
+            // Export each frame
+            for (let i = 0; i < this.totalTimeSteps; i++) {
+                // Update to this time step
+                await this.updateToTimeStep(i);
+                
+                // Wait a bit for rendering to complete
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Generate filename with zero-padded frame number
+                const frameNumber = String(i).padStart(4, '0');
+                const extension = format === 'jpeg' ? 'jpg' : 'png';
+                const filename = `${filenamePrefix}_${frameNumber}.${extension}`;
+                
+                // Capture and download frame
+                const dataUrl = this.captureFrame({ ...captureOptions, format });
+                this.downloadDataUrl(dataUrl, filename);
+                
+                // Report progress
+                const progress = ((i + 1) / this.totalTimeSteps) * 100;
+                
+                if (onProgress) {
+                    onProgress(progress, i + 1, this.totalTimeSteps);
+                }
+                
+                // Emit progress event
+                this.eventBus.emit('visualization:batchExportProgress', {
+                    current: i + 1,
+                    total: this.totalTimeSteps,
+                    progress: progress,
+                    filename: filename
+                });
+                
+                console.log(`[VisualizationPanel] Exported frame ${i + 1}/${this.totalTimeSteps}: ${filename}`);
+                
+                // Small delay between exports to avoid overwhelming the browser
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+            
+            // Restore original time step
+            await this.updateToTimeStep(originalTimeStep);
+            
+            // Emit completion event
+            this.eventBus.emit('visualization:batchExportCompleted', {
+                totalFrames: this.totalTimeSteps,
+                success: true
+            });
+            
+            console.log('[VisualizationPanel] Batch export completed successfully');
+            
+        } catch (error) {
+            console.error('[VisualizationPanel] Batch export failed:', error);
+            
+            // Restore original time step on error
+            try {
+                await this.updateToTimeStep(originalTimeStep);
+            } catch (restoreError) {
+                console.error('[VisualizationPanel] Failed to restore time step:', restoreError);
+            }
+            
+            // Emit error event
+            this.eventBus.emit('visualization:error', {
+                type: 'batch-export',
+                message: `Batch export failed: ${error.message}`,
+                error: error
+            });
+            
+            throw error;
+        }
+    }
+
+    /**
+     * Download data URL as file
+     * @private
+     * @param {string} dataUrl - Data URL to download
+     * @param {string} filename - Output filename
+     */
+    downloadDataUrl(dataUrl, filename) {
+        const link = document.createElement('a');
+        link.href = dataUrl;
+        link.download = filename;
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        console.log('[VisualizationPanel] Download triggered:', filename);
     }
 
     /**

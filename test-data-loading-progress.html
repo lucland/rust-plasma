@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Loading Progress Test</title>
+    <link rel="stylesheet" href="src-tauri/ui/css/main.css">
+    <style>
+        body {
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            background-color: white;
+        }
+        .test-section h2 {
+            margin-bottom: 15px;
+            color: #343a40;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            border: 1px solid #007bff;
+            background-color: #007bff;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .log {
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+        }
+        .animation-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Data Loading Progress Test</h1>
+        
+        <div class="test-section">
+            <h2>Test 1: Initial Data Loading</h2>
+            <div class="controls">
+                <button onclick="testInitialLoading()">Start Initial Loading</button>
+                <button onclick="testBackgroundLoading()">Start Background Loading</button>
+                <button onclick="testLoadingComplete()">Complete Loading</button>
+                <button onclick="testLoadingError()">Simulate Error</button>
+            </div>
+            <div id="loading-demo" class="animation-controls"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 2: Cache Status Indicator</h2>
+            <div class="controls">
+                <button onclick="showCacheStatus()">Show Cache Status</button>
+                <button onclick="hideCacheStatus()">Hide Cache Status</button>
+            </div>
+            <div id="cache-status-demo"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 3: Progress Updates</h2>
+            <div class="controls">
+                <button onclick="simulateProgressUpdates()">Simulate Progress</button>
+                <button onclick="resetProgress()">Reset</button>
+            </div>
+            <div id="progress-demo" class="animation-controls"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Event Log</h2>
+            <div id="event-log" class="log"></div>
+        </div>
+    </div>
+
+    <!-- Load dependencies -->
+    <script src="src-tauri/ui/js/core/eventBus.js"></script>
+    <script src="src-tauri/ui/js/core/data-cache.js"></script>
+    <script src="src-tauri/ui/js/components/animation.js"></script>
+    <script src="src-tauri/ui/js/components/animationUI.js"></script>
+
+    <script>
+        // Initialize test environment
+        const eventBus = new EventBus();
+        const logContainer = document.getElementById('event-log');
+        let animationUI = null;
+        let progressInterval = null;
+
+        // Log events
+        function logEvent(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#333';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // Listen to all cache events
+        eventBus.on('cache:loading-start', (data) => {
+            logEvent(`Loading started: ${data.totalFrames} frames, initial batch: ${data.initialBatch}`, 'info');
+        });
+
+        eventBus.on('cache:loading-progress', (data) => {
+            logEvent(`Progress: ${Math.round(data.progress)}% (${data.loaded}/${data.total})`, 'info');
+        });
+
+        eventBus.on('cache:ready', (data) => {
+            logEvent(`Cache ready: ${data.cachedFrames} frames loaded`, 'success');
+        });
+
+        eventBus.on('cache:background-loading-start', (data) => {
+            logEvent(`Background loading started: ${data.remainingFrames} frames remaining`, 'info');
+        });
+
+        eventBus.on('cache:loading-complete', (data) => {
+            logEvent(`Loading complete: All ${data.totalFrames} frames loaded`, 'success');
+        });
+
+        eventBus.on('cache:error', (data) => {
+            logEvent(`Error: ${data.error}`, 'error');
+        });
+
+        // Initialize AnimationUI for testing
+        function initAnimationUI() {
+            if (!animationUI) {
+                const container = document.getElementById('loading-demo');
+                const animationController = new AnimationController(eventBus);
+                animationUI = new AnimationUI(container, animationController, eventBus);
+                animationUI.render();
+                logEvent('AnimationUI initialized', 'success');
+            }
+        }
+
+        // Test functions
+        function testInitialLoading() {
+            initAnimationUI();
+            logEvent('Testing initial loading...', 'info');
+            
+            eventBus.emit('cache:loading-start', {
+                totalFrames: 100,
+                initialBatch: 10
+            });
+
+            // Simulate progress
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += 10;
+                eventBus.emit('cache:loading-progress', {
+                    progress: progress,
+                    loaded: Math.floor(progress / 10),
+                    total: 100
+                });
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    eventBus.emit('cache:ready', {
+                        cachedFrames: 10,
+                        totalFrames: 100,
+                        progress: 10
+                    });
+                }
+            }, 500);
+        }
+
+        function testBackgroundLoading() {
+            logEvent('Testing background loading...', 'info');
+            
+            eventBus.emit('cache:background-loading-start', {
+                startFrame: 10,
+                totalFrames: 100,
+                remainingFrames: 90
+            });
+
+            // Simulate background progress
+            let progress = 10;
+            const interval = setInterval(() => {
+                progress += 5;
+                eventBus.emit('cache:loading-progress', {
+                    progress: progress,
+                    loaded: Math.floor(progress),
+                    total: 100
+                });
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    testLoadingComplete();
+                }
+            }, 300);
+        }
+
+        function testLoadingComplete() {
+            logEvent('Testing loading complete...', 'info');
+            
+            eventBus.emit('cache:loading-complete', {
+                cachedFrames: 100,
+                totalFrames: 100,
+                progress: 100
+            });
+        }
+
+        function testLoadingError() {
+            logEvent('Testing loading error...', 'info');
+            
+            eventBus.emit('cache:error', {
+                type: 'initialization',
+                error: 'Failed to connect to backend'
+            });
+        }
+
+        function showCacheStatus() {
+            initAnimationUI();
+            logEvent('Showing cache status indicator', 'info');
+            animationUI.showCacheStatus(true);
+        }
+
+        function hideCacheStatus() {
+            if (animationUI) {
+                logEvent('Hiding cache status indicator', 'info');
+                animationUI.showCacheStatus(false);
+            }
+        }
+
+        function simulateProgressUpdates() {
+            initAnimationUI();
+            logEvent('Simulating continuous progress updates...', 'info');
+            
+            if (progressInterval) {
+                clearInterval(progressInterval);
+            }
+
+            let loaded = 0;
+            const total = 120;
+            
+            eventBus.emit('cache:loading-start', {
+                totalFrames: total,
+                initialBatch: 10
+            });
+
+            progressInterval = setInterval(() => {
+                loaded += 2;
+                const progress = (loaded / total) * 100;
+                
+                eventBus.emit('cache:loading-progress', {
+                    progress: progress,
+                    loaded: loaded,
+                    total: total
+                });
+
+                if (loaded >= 10 && loaded === 10) {
+                    eventBus.emit('cache:ready', {
+                        cachedFrames: loaded,
+                        totalFrames: total,
+                        progress: progress
+                    });
+                    eventBus.emit('cache:background-loading-start', {
+                        startFrame: loaded,
+                        totalFrames: total,
+                        remainingFrames: total - loaded
+                    });
+                }
+
+                if (loaded >= total) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                    eventBus.emit('cache:loading-complete', {
+                        cachedFrames: total,
+                        totalFrames: total,
+                        progress: 100
+                    });
+                }
+            }, 200);
+        }
+
+        function resetProgress() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+            logEvent('Progress reset', 'info');
+            
+            // Clear the loading UI
+            if (animationUI) {
+                animationUI.hideDataLoadingProgress();
+                animationUI.showCacheStatus(false);
+            }
+        }
+
+        // Initialize on load
+        logEvent('Test page loaded', 'success');
+        logEvent('Click buttons above to test different loading scenarios', 'info');
+    </script>
+</body>
+</html>

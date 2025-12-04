@@ -167,12 +167,14 @@ class KeyboardHandler {
             this.announce(`Simulation failed: ${data.error}`);
         });
         
-        this.eventBus.on('animation:play', () => {
-            this.announce('Animation playing');
+        this.eventBus.on('animation:play', (data) => {
+            const timeStep = data.currentTimeStep !== undefined ? ` at step ${data.currentTimeStep + 1}` : '';
+            this.announce(`Animation playing${timeStep}`);
         });
         
-        this.eventBus.on('animation:pause', () => {
-            this.announce('Animation paused');
+        this.eventBus.on('animation:pause', (data) => {
+            const timeStep = data.currentTimeStep !== undefined ? ` at step ${data.currentTimeStep + 1}` : '';
+            this.announce(`Animation paused${timeStep}`);
         });
     }
     
@@ -371,6 +373,27 @@ class KeyboardHandler {
      * Trigger play/pause animation
      */
     triggerPlayPause() {
+        // Try to get animation controller from app instance
+        if (window.app) {
+            const animationController = window.app.getComponent('animation');
+            if (animationController) {
+                const state = animationController.getState();
+                if (state.isPlaying) {
+                    animationController.pause();
+                    this.announce('Animation paused');
+                } else {
+                    const success = animationController.play();
+                    if (success) {
+                        this.announce('Animation playing');
+                    } else {
+                        this.announce('Cannot play animation');
+                    }
+                }
+                return;
+            }
+        }
+        
+        // Fallback: try to find play/pause button in DOM
         const playPauseButton = document.getElementById('play-pause');
         if (playPauseButton && playPauseButton.style.display !== 'none') {
             playPauseButton.click();
